@@ -44,10 +44,25 @@ Active printer profile (design for this):
 """
 
 
+RECONSTRUCT_NOTE = """\
+
+You are reconstructing a REAL part from a photo plus measured dimensions. The
+measurements were calibrated against a reference object of known size, so treat
+them as authoritative — the model must match them. If the part in the photo is
+broken, worn, or missing a section, infer and rebuild the COMPLETE, functional
+geometry (e.g. mirror an intact side, re-form a snapped tab, restore a hole).
+Expose the measured dimensions as parameters so they can be fine-tuned.
+"""
+
+
 def system_prompt(profile: dict | None = None) -> str:
     if not profile:
         return SYSTEM_PROMPT
     return SYSTEM_PROMPT + PROFILE_NOTE.format(**profile)
+
+
+def reconstruct_system_prompt(profile: dict | None = None) -> str:
+    return system_prompt(profile) + RECONSTRUCT_NOTE
 
 
 REPAIR_PROMPT = """\

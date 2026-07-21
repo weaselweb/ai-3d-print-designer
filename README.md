@@ -19,8 +19,8 @@ core workflows, phased roadmap, tech stack, costs, risks, and research sources.
 | **0** | FastAPI + SQLite + three.js preview; parametric **demo** model → build → download STL/STEP | ✅ Done |
 | **1** | Describe a part in words → Claude writes CadQuery → same build/preview/download pipeline, with live parameter sliders, a manifold check, and a self-repair retry | ✅ Done |
 | **2** | Print-readiness assistant: overhang/support detection, min-wall estimate, feature-size check, auto-repair, orientation suggestion, editable printer profile + FDM tolerance/fit reference (also fed into the AI prompt) | ✅ Done |
-| 3 | Photo measurement + broken-part fix (credit-card scale reference) | ⏳ Next |
-| 4 | Multi-colour signs → standard 3MF for Slicer Next / ACE Pro | ⏳ Planned |
+| **3** | Photo → fix a broken part: upload a photo, pick a **reference object** (library of cards/coins/paper/ruler + custom), click to calibrate scale (mm/px) and measure features, then Claude vision rebuilds it parametrically at the measured sizes → into the same build/preview/readiness pipeline | ✅ Done |
+| 4 | Multi-colour signs → standard 3MF for Slicer Next / ACE Pro | ⏳ Next |
 
 ---
 
@@ -94,8 +94,12 @@ app/
     validate.py        # static guard for model-written code
     primitives.py      # Phase 0 demo model
   ai/
-    generator.py       # prompt -> Claude -> parametric design (+ self-repair)
-    prompts.py         # system prompt / JSON contract
+    generator.py       # prompt/photo -> Claude -> parametric design (+ self-repair)
+    prompts.py         # system prompt / JSON contract / reconstruction note
+  measure/
+    references.py      # scale-reference library (cards, coins, paper, ruler, custom)
+    scale.py           # mm-per-pixel calibration + measurement math
+  print_check/         # overhang, wall, feature, repair, orientation, fit presets
   services/build_service.py
   templates/  static/  # HTMX pages + three.js viewer
 tests/                 # engine + app smoke tests (no API key needed)

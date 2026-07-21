@@ -21,6 +21,23 @@
     </form>
   </div>
   <div class="col-lg-5">
+    <div class="card bg-body-tertiary mb-3">
+      <div class="card-body">
+        <h2 class="h6">Fix a broken part from a photo</h2>
+        <p class="small text-secondary mb-2">
+          Photograph the part next to a <strong>reference object</strong> (an ID card, a coin,
+          a ruler — you pick which) so we can gauge real size, measure it, then rebuild it.
+        </p>
+        <form method="post" action="/capture/upload" enctype="multipart/form-data">
+          <input class="form-control form-control-sm mb-2" type="file" name="photo"
+                 accept="image/png,image/jpeg,image/webp" {% if not has_key %}disabled{% endif %}>
+          <button class="btn btn-primary btn-sm" type="submit" {% if not has_key %}disabled{% endif %}>
+            Upload &amp; measure
+          </button>
+          {% if not has_key %}<div class="small text-secondary mt-1">Needs an API key.</div>{% endif %}
+        </form>
+      </div>
+    </div>
     <div class="card bg-body-tertiary">
       <div class="card-body">
         <h2 class="h6">No key? Try the pipeline</h2>

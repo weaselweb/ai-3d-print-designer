@@ -34,6 +34,19 @@ CREATE TABLE IF NOT EXISTS assets (
     created_at TEXT NOT NULL,
     FOREIGN KEY (design_id) REFERENCES designs(id) ON DELETE CASCADE
 );
+
+CREATE TABLE IF NOT EXISTS captures (
+    id               TEXT PRIMARY KEY,
+    photo_path       TEXT NOT NULL,
+    reference_label  TEXT NOT NULL DEFAULT '',
+    reference_mm     REAL NOT NULL DEFAULT 0,
+    mm_per_px        REAL NOT NULL DEFAULT 0,
+    measurements     TEXT NOT NULL DEFAULT '[]',  -- JSON: [{name, mm, p1, p2}]
+    description      TEXT NOT NULL DEFAULT '',
+    design_id        TEXT,
+    created_at       TEXT NOT NULL,
+    updated_at       TEXT NOT NULL
+);
 """
 
 
@@ -112,4 +125,54 @@ def update_parameters(design_id: str, parameters: list[dict[str, Any]]) -> None:
         conn.execute(
             "UPDATE designs SET parameters=?, updated_at=? WHERE id=?",
             (json.dumps(parameters), _now(), design_id),
+        )
+
+
+# --------------------------------------------------------------------------- #
+# Captures (photo -> measurement -> reconstruction)
+# --------------------------------------------------------------------------- #
+def create_capture(photo_path: str, capture_id: str | None = None) -> str:
+    capture_id = capture_id or new_id()
+    now = _now()
+    with connect() as conn:
+        conn.execute(
+            "INSERT INTO captures (id, photo_path, created_at, updated_at) VALUES (?,?,?,?)",
+            (capture_id, photo_path, now, now),
+        )
+    return capture_id
+
+
+def get_capture(capture_id: str) -> dict[str, Any] | None:
+    with connect() as conn:
+        row = conn.execute("SELECT * FROM captures WHERE id=?", (capture_id,)).fetchone()
+    if not row:
+        return None
+    data = dict(row)
+    data["measurements"] = json.loads(data["measurements"])
+    return data
+
+
+def save_capture_measurements(
+    capture_id: str,
+    *,
+    reference_label: str,
+    reference_mm: float,
+    mm_per_px: float,
+    measurements: list[dict[str, Any]],
+    description: str,
+) -> None:
+    with connect() as conn:
+        conn.execute(
+            """UPDATE captures SET reference_label=?, reference_mm=?, mm_per_px=?,
+               measurements=?, description=?, updated_at=? WHERE id=?""",
+            (reference_label, reference_mm, mm_per_px, json.dumps(measurements),
+             description, _now(), capture_id),
+        )
+
+
+def attach_design_to_capture(capture_id: str, design_id: str) -> None:
+    with connect() as conn:
+        conn.execute(
+            "UPDATE captures SET design_id=?, updated_at=? WHERE id=?",
+            (design_id, _now(), capture_id),
         )

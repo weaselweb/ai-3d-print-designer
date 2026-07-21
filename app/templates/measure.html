@@ -1,0 +1,86 @@
+{% extends "base.html" %}
+{% block title %}Measure &amp; reconstruct · AI 3D Print Designer{% endblock %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-start mb-3">
+  <div>
+    <h1 class="h4 mb-1">Measure &amp; reconstruct</h1>
+    <p class="text-secondary mb-0 small">
+      Set the scale from a reference object, measure the part, then generate a parametric model.
+    </p>
+  </div>
+  <a href="/" class="btn btn-sm btn-outline-secondary">← Home</a>
+</div>
+
+<div class="row g-4" id="measure-app"
+     data-capture-id="{{ capture.id }}"
+     data-image-url="/capture/{{ capture.id }}/image">
+  <!-- Controls -->
+  <div class="col-lg-4">
+    <!-- Step 1: reference -->
+    <div class="card bg-body-tertiary mb-3">
+      <div class="card-body">
+        <h2 class="h6">1 · Reference object</h2>
+        <select class="form-select form-select-sm mb-2" id="ref-select">
+          {% for group in references|groupby('group') %}
+          <optgroup label="{{ group.grouper }}">
+            {% for r in group.list %}
+            <option value="{{ r.id }}" data-mm="{{ r.mm }}" data-measure="{{ r.measure }}"
+                    data-custom="{{ '1' if r.custom else '0' }}" {{ 'selected' if r.default else '' }}>
+              {{ r.label }}{% if r.mm %} — {{ r.mm }} mm{% endif %}
+            </option>
+            {% endfor %}
+          </optgroup>
+          {% endfor %}
+        </select>
+        <div id="custom-fields" class="d-none">
+          <input class="form-control form-control-sm mb-2" id="custom-name" placeholder="Object name (e.g. my ruler)">
+          <div class="input-group input-group-sm mb-2">
+            <input class="form-control" id="custom-mm" type="number" step="0.1" placeholder="Known length">
+            <span class="input-group-text">mm</span>
+          </div>
+        </div>
+        <button class="btn btn-outline-light btn-sm" id="btn-calibrate">
+          Click the two ends of the <span id="measure-name">long edge</span>
+        </button>
+        <div class="small mt-2" id="scale-status">Scale not set yet.</div>
+      </div>
+    </div>
+
+    <!-- Step 2: measurements -->
+    <div class="card bg-body-tertiary mb-3">
+      <div class="card-body">
+        <h2 class="h6">2 · Measure the part</h2>
+        <div class="input-group input-group-sm mb-2">
+          <input class="form-control" id="meas-name" placeholder="Dimension name (e.g. hole Ø)">
+          <button class="btn btn-primary" id="btn-measure" disabled>Add — click 2 points</button>
+        </div>
+        <ul class="list-group list-group-flush small" id="meas-list"></ul>
+      </div>
+    </div>
+
+    <!-- Step 3: generate -->
+    <div class="card bg-body-tertiary">
+      <div class="card-body">
+        <h2 class="h6">3 · Reconstruct</h2>
+        <textarea class="form-control form-control-sm mb-2" id="description" rows="3"
+          placeholder="What is it / how should it work? Note any broken or missing part to rebuild."></textarea>
+        <button class="btn btn-success btn-sm" id="btn-generate" disabled>Generate 3D model</button>
+        <div class="small mt-2" id="gen-status"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Canvas -->
+  <div class="col-lg-8">
+    <div class="border rounded p-2 bg-black text-center" style="overflow:auto">
+      <canvas id="canvas" style="max-width:100%; cursor:crosshair"></canvas>
+    </div>
+    <p class="small text-secondary mt-2">
+      Tip: shoot square-on, keep the reference in the <em>same plane</em> as the part, fill the frame.
+      Accuracy is usually within a few % with a good shot.
+    </p>
+  </div>
+</div>
+
+<script src="/static/measure.js"></script>
+{% endblock %}

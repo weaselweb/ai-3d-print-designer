@@ -8,8 +8,8 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 
-from fastapi import FastAPI, Form, HTTPException, Request
-from fastapi.responses import FileResponse, HTMLResponse
+from fastapi import FastAPI, File, Form, HTTPException, Request, UploadFile
+from fastapi.responses import FileResponse, HTMLResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
@@ -18,8 +18,11 @@ from .cad.executor import CadExecutionError
 from .cad.primitives import DEMO_CODE, DEMO_PARAMETERS
 from .cad.validate import UnsafeCodeError
 from .config import settings
+from .measure.references import REFERENCE_OBJECTS
 from .print_check.profile import FIT_PRESETS
 from .services import build_service as builder
+
+_IMAGE_EXTS = {"image/png": ".png", "image/jpeg": ".jpg", "image/webp": ".webp"}
 
 BASE_DIR = Path(__file__).resolve().parent
 templates = Jinja2Templates(directory=str(BASE_DIR / "templates"))
@@ -178,6 +181,81 @@ def get_repaired(design_id: str):
     if not path.exists():
         raise HTTPException(404, "No repaired STL for this design")
     return FileResponse(path, media_type="model/stl", filename=f"{design_id}-repaired.stl")
+
+
+# --------------------------------------------------------------------------- #
+# Phase 3: photo -> measure (with a reference object) -> reconstruct
+# --------------------------------------------------------------------------- #
+@app.post("/capture/upload")
+async def capture_upload(photo: UploadFile = File(...)):
+    ext = _IMAGE_EXTS.get(photo.content_type or "")
+    if not ext:
+        raise HTTPException(400, "Please upload a PNG, JPEG, or WebP image.")
+    capture_id = db.new_id()
+    dest = settings.uploads_dir / f"{capture_id}{ext}"
+    dest.parent.mkdir(parents=True, exist_ok=True)
+    dest.write_bytes(await photo.read())
+    db.create_capture(str(dest), capture_id=capture_id)
+    return HTMLResponse(status_code=303, headers={"Location": f"/capture/{capture_id}"})
+
+
+@app.get("/capture/{capture_id}", response_class=HTMLResponse)
+def capture_page(request: Request, capture_id: str):
+    capture = db.get_capture(capture_id)
+    if not capture:
+        raise HTTPException(404, "Capture not found")
+    return templates.TemplateResponse(
+        request, "measure.html",
+        {"capture": capture, "references": REFERENCE_OBJECTS},
+    )
+
+
+@app.get("/capture/{capture_id}/image")
+def capture_image(capture_id: str):
+    capture = db.get_capture(capture_id)
+    if not capture:
+        raise HTTPException(404, "Capture not found")
+    path = Path(capture["photo_path"])
+    if not path.exists():
+        raise HTTPException(404, "Image missing")
+    return FileResponse(path)
+
+
+@app.post("/capture/{capture_id}/build")
+async def capture_build(request: Request, capture_id: str):
+    capture = db.get_capture(capture_id)
+    if not capture:
+        raise HTTPException(404, "Capture not found")
+    payload = await request.json()
+    measurements = payload.get("measurements", [])
+    db.save_capture_measurements(
+        capture_id,
+        reference_label=str(payload.get("reference_label", "")),
+        reference_mm=float(payload.get("reference_mm", 0) or 0),
+        mm_per_px=float(payload.get("mm_per_px", 0) or 0),
+        measurements=measurements,
+        description=str(payload.get("description", "")),
+    )
+    from .ai.generator import GenerationError, generate_from_capture
+
+    try:
+        gen = generate_from_capture(
+            description=str(payload.get("description", "")),
+            measurements=measurements,
+            image_path=Path(capture["photo_path"]),
+            profile=builder.active_profile().as_dict(),
+        )
+    except GenerationError as exc:
+        return JSONResponse({"error": str(exc)}, status_code=400)
+
+    design_id = db.save_design(
+        design_id=None, name=gen.name, description=gen.description,
+        prompt=f"[reconstructed from photo] {payload.get('description', '')}",
+        engine="cadquery", code=gen.code, parameters=gen.parameters,
+    )
+    db.attach_design_to_capture(capture_id, design_id)
+    _build_and_store(db.get_design(design_id))
+    return JSONResponse({"design_url": f"/design/{design_id}"})
 
 
 # --------------------------------------------------------------------------- #
