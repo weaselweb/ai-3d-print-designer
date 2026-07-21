@@ -108,6 +108,27 @@ def generate(prompt: str, profile: dict | None = None) -> GeneratedDesign:
     return _generate_verified(messages, system_prompt(profile))
 
 
+def default_params(design: GeneratedDesign) -> dict[str, Any]:
+    return _default_params(design)
+
+
+def revise_design(
+    design: GeneratedDesign, issues: list[str], profile: dict | None = None
+) -> GeneratedDesign:
+    """Ask the model to fix specific printability problems; verify it still builds."""
+    import json as _json
+
+    from .prompts import REFINE_PROMPT
+
+    msg = REFINE_PROMPT.format(
+        issues="\n".join(f"- {i}" for i in issues),
+        params=_json.dumps(_default_params(design)),
+        code=design.code,
+    )
+    messages = [{"role": "user", "content": msg}]
+    return _generate_verified(messages, system_prompt(profile))
+
+
 def _measurements_text(measurements: list[dict[str, Any]]) -> str:
     if not measurements:
         return "(no explicit measurements provided — infer scale from the photo)"

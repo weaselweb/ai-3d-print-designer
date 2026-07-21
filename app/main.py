@@ -120,12 +120,26 @@ def create_demo():
     return HTMLResponse(status_code=303, headers={"Location": f"/design/{design_id}"})
 
 
+def _generate_maybe_refine(prompt: str, autofix: bool) -> tuple[Any, list[dict]]:
+    """Generate a design; if autofix, run the printability agent and return its log."""
+    from .ai.generator import generate as ai_generate
+
+    profile = builder.active_profile().as_dict()
+    gen = ai_generate(prompt, profile=profile)
+    if not autofix:
+        return gen, []
+    from .ai.agent import refine_for_printability
+
+    outcome = refine_for_printability(gen, profile)
+    return outcome.design, outcome.log()
+
+
 @app.post("/generate", response_class=HTMLResponse)
-def generate(request: Request, prompt: str = Form(...)):
-    from .ai.generator import GenerationError, generate as ai_generate
+def generate(request: Request, prompt: str = Form(...), autofix: str = Form(None)):
+    from .ai.generator import GenerationError
 
     try:
-        gen = ai_generate(prompt, profile=builder.active_profile().as_dict())
+        gen, log = _generate_maybe_refine(prompt, autofix is not None)
     except GenerationError as exc:
         return templates.TemplateResponse(
             request,
@@ -137,6 +151,7 @@ def generate(request: Request, prompt: str = Form(...)):
     design_id = db.save_design(
         design_id=None, name=gen.name, description=gen.description, prompt=prompt,
         engine="cadquery", code=gen.code, parameters=gen.parameters, bodies=gen.bodies,
+        agent_log=log,
     )
     design = db.get_design(design_id)
     _build_and_store(design)
@@ -334,9 +349,9 @@ def sign_new():
 
 
 @app.post("/signs/generate", response_class=HTMLResponse)
-def sign_generate(request: Request, prompt: str = Form(...)):
+def sign_generate(request: Request, prompt: str = Form(...), autofix: str = Form(None)):
     """AI sign: describe it -> Claude builds a multi-colour sign as a design."""
-    from .ai.generator import GenerationError, generate as ai_generate
+    from .ai.generator import GenerationError
 
     framed = (
         "Design a multi-colour, 3D-printable SIGN or nameplate as a flat plate that "
@@ -344,7 +359,7 @@ def sign_generate(request: Request, prompt: str = Form(...)):
         "text/lettering, and any border or graphic elements. Request:\n" + prompt
     )
     try:
-        gen = ai_generate(framed, profile=builder.active_profile().as_dict())
+        gen, log = _generate_maybe_refine(framed, autofix is not None)
     except GenerationError as exc:
         return templates.TemplateResponse(
             request, "index.html",
@@ -354,6 +369,7 @@ def sign_generate(request: Request, prompt: str = Form(...)):
     design_id = db.save_design(
         design_id=None, name=gen.name, description=gen.description, prompt=f"[sign] {prompt}",
         engine="cadquery", code=gen.code, parameters=gen.parameters, bodies=gen.bodies,
+        agent_log=log,
     )
     _build_and_store(db.get_design(design_id))
     return HTMLResponse(status_code=303, headers={"Location": f"/design/{design_id}"})

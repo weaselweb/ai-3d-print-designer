@@ -88,3 +88,24 @@ Error:
 Previous code:
 {code}
 """
+
+REFINE_PROMPT = """\
+This part was analysed for 3D printability and has problems. Revise the CadQuery
+to FIX them while keeping the part's purpose and overall size. Return the SAME
+JSON object schema (name, description, parameters, bodies, code).
+
+Problems to fix:
+{issues}
+
+Guidance:
+- Thicken any wall below the minimum to at least the minimum.
+- Enlarge or remove features smaller than one nozzle width.
+- Make every body a closed, watertight, manifold solid.
+- Reduce steep overhangs with chamfers/fillets or by splitting the part, only
+  where it doesn't harm function (supports are acceptable otherwise).
+- Keep the multicolour bodies and keep parameters stable where you can.
+
+Current parameters (JSON): {params}
+Current code:
+{code}
+"""

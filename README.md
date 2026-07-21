@@ -22,6 +22,7 @@ core workflows, phased roadmap, tech stack, costs, risks, and research sources.
 | **3** | Photo → fix a broken part: upload a photo, pick a **reference object** (library of cards/coins/paper/ruler + custom), click to calibrate scale (mm/px) and measure features, then Claude vision rebuilds it parametrically at the measured sizes → into the same build/preview/readiness pipeline | ✅ Done |
 | **4** | Multi-colour signs: text + coloured plate / text / border builder → **standard multi-body 3MF** (each colour a separate object with a base material) that Anycubic Slicer Next reads and maps to ACE Pro slots. Coloured 3D preview. No API key needed. | ✅ Done |
 | **4.5** | **Multicolour everywhere**: the generation contract now returns named coloured **bodies**; the AI splits parts into logical colours you can recolour; **every design exports a multi-body 3MF** (+ STL/STEP); one colour-aware multi-body 3D preview shared across designs & signs; **AI sign generation** ("describe a sign") added alongside the form builder | ✅ Done |
+| **5** | **Printability agent**: opt-in "Auto-fix for printability" runs a bounded build → analyse → revise loop that uses the readiness analyzer as a verifier, feeding blocking issues (thin walls, non-manifold, sub-nozzle features) back to Claude until the part passes or a step budget (4) is hit. Shows an auto-fix log of what changed | ✅ Done |
 
 ---
 
@@ -101,7 +102,8 @@ app/
     primitives.py      # Phase 0 demo model
   ai/
     generator.py       # prompt/photo -> Claude -> parametric design (+ self-repair)
-    prompts.py         # system prompt / JSON contract / reconstruction note
+    prompts.py         # system prompt / JSON contract / reconstruction / refine
+    agent.py           # bounded build->analyse->revise printability loop
   measure/
     references.py      # scale-reference library (cards, coins, paper, ruler, custom)
     scale.py           # mm-per-pixel calibration + measurement math

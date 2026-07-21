@@ -9,6 +9,28 @@
   <a href="/" class="btn btn-sm btn-outline-secondary">← New design</a>
 </div>
 
+{% if design.agent_log %}
+<div class="card bg-body-tertiary mb-3">
+  <div class="card-body py-2">
+    <details>
+      <summary class="small">
+        🤖 <strong>Auto-fix log</strong>
+        <span class="text-secondary">— the printability agent ran {{ design.agent_log|length }} pass{{ 'es' if design.agent_log|length != 1 else '' }}</span>
+      </summary>
+      <ol class="small mt-2 mb-0 ps-3">
+        {% for step in design.agent_log %}
+        <li class="mb-1">
+          <span class="fw-semibold text-capitalize">{{ step.action }}</span>
+          {% if step.issues %}<ul class="mb-1">{% for i in step.issues %}<li class="text-secondary">{{ i }}</li>{% endfor %}</ul>
+          {% else %}<span class="text-secondary">— no blocking issues.</span>{% endif %}
+        </li>
+        {% endfor %}
+      </ol>
+    </details>
+  </div>
+</div>
+{% endif %}
+
 <div class="row g-4">
   <!-- Parameters -->
   <div class="col-lg-4">
