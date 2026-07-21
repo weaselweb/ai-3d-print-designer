@@ -21,6 +21,8 @@ from .config import settings
 from .measure.references import REFERENCE_OBJECTS
 from .print_check.profile import FIT_PRESETS
 from .services import build_service as builder
+from .signs import service as sign_service
+from .signs.builder import DEFAULTS as SIGN_DEFAULTS
 
 _IMAGE_EXTS = {"image/png": ".png", "image/jpeg": ".jpg", "image/webp": ".webp"}
 
@@ -256,6 +258,84 @@ async def capture_build(request: Request, capture_id: str):
     db.attach_design_to_capture(capture_id, design_id)
     _build_and_store(db.get_design(design_id))
     return JSONResponse({"design_url": f"/design/{design_id}"})
+
+
+# --------------------------------------------------------------------------- #
+# Phase 4: multi-colour signs -> standard 3MF for Slicer Next / ACE Pro
+# --------------------------------------------------------------------------- #
+_SIGN_NUM = ("plate_w", "plate_h", "plate_thickness", "corner_radius", "text_size",
+             "text_height", "border_width", "border_height", "hole_diameter")
+_SIGN_COLORS = ("base_color", "text_color", "border_color")
+
+
+def _parse_sign_form(form: Any, base: dict[str, Any]) -> dict[str, Any]:
+    p = dict(base)
+    p["text"] = str(form.get("text", ""))
+    for k in _SIGN_NUM:
+        if k in form:
+            try:
+                p[k] = float(form[k])
+            except ValueError:
+                pass
+    for k in _SIGN_COLORS:
+        if form.get(k):
+            p[k] = str(form[k])
+    p["border"] = form.get("border") is not None  # unchecked checkbox is absent
+    p["holes"] = form.get("holes") is not None
+    return p
+
+
+@app.post("/signs/new")
+def sign_new():
+    params = dict(SIGN_DEFAULTS)
+    sign_id = db.save_sign(None, params["text"], params)
+    sign_service.build_sign(sign_id, params)
+    return HTMLResponse(status_code=303, headers={"Location": f"/signs/{sign_id}"})
+
+
+@app.get("/signs/{sign_id}", response_class=HTMLResponse)
+def sign_page(request: Request, sign_id: str):
+    sign = db.get_sign(sign_id)
+    if not sign:
+        raise HTTPException(404, "Sign not found")
+    manifest = sign_service.build_sign(sign_id, sign["params"])
+    return templates.TemplateResponse(
+        request, "signs.html", {"sign": sign, "manifest": manifest, "defaults": SIGN_DEFAULTS},
+    )
+
+
+@app.post("/signs/{sign_id}/rebuild", response_class=HTMLResponse)
+async def sign_rebuild(request: Request, sign_id: str):
+    sign = db.get_sign(sign_id)
+    if not sign:
+        raise HTTPException(404, "Sign not found")
+    form = await request.form()
+    params = _parse_sign_form(form, sign["params"])
+    db.save_sign(sign_id, params["text"], params)
+    try:
+        manifest = sign_service.build_sign(sign_id, params)
+    except Exception as exc:  # noqa: BLE001 - surface geometry errors to the user
+        return HTMLResponse(f'<div class="alert alert-danger mb-0">Build failed: {exc}</div>',
+                            status_code=400)
+    return templates.TemplateResponse(
+        request, "_sign_preview.html", {"sign_id": sign_id, "manifest": manifest},
+    )
+
+
+@app.get("/signs/{sign_id}/sign.3mf")
+def get_sign_3mf(sign_id: str):
+    path = sign_service.threemf_path(sign_id)
+    if not path.exists():
+        raise HTTPException(404, "3MF not built yet")
+    return FileResponse(path, media_type="model/3mf", filename=f"{sign_id}.3mf")
+
+
+@app.get("/signs/{sign_id}/body/{index}.stl")
+def get_sign_body(sign_id: str, index: int):
+    path = sign_service.body_stl_path(sign_id, index)
+    if not path.exists():
+        raise HTTPException(404, "Body not found")
+    return FileResponse(path, media_type="model/stl", filename=f"{sign_id}-{index}.stl")
 
 
 # --------------------------------------------------------------------------- #

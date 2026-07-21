@@ -47,6 +47,14 @@ CREATE TABLE IF NOT EXISTS captures (
     created_at       TEXT NOT NULL,
     updated_at       TEXT NOT NULL
 );
+
+CREATE TABLE IF NOT EXISTS signs (
+    id          TEXT PRIMARY KEY,
+    text        TEXT NOT NULL DEFAULT '',
+    params      TEXT NOT NULL DEFAULT '{}',   -- JSON: dims + colours + toggles
+    created_at  TEXT NOT NULL,
+    updated_at  TEXT NOT NULL
+);
 """
 
 
@@ -176,3 +184,34 @@ def attach_design_to_capture(capture_id: str, design_id: str) -> None:
             "UPDATE captures SET design_id=?, updated_at=? WHERE id=?",
             (design_id, _now(), capture_id),
         )
+
+
+# --------------------------------------------------------------------------- #
+# Signs (multi-colour)
+# --------------------------------------------------------------------------- #
+def save_sign(sign_id: str | None, text: str, params: dict[str, Any]) -> str:
+    now = _now()
+    params_json = json.dumps(params)
+    with connect() as conn:
+        if sign_id and conn.execute("SELECT 1 FROM signs WHERE id=?", (sign_id,)).fetchone():
+            conn.execute(
+                "UPDATE signs SET text=?, params=?, updated_at=? WHERE id=?",
+                (text, params_json, now, sign_id),
+            )
+            return sign_id
+        sign_id = sign_id or new_id()
+        conn.execute(
+            "INSERT INTO signs (id, text, params, created_at, updated_at) VALUES (?,?,?,?,?)",
+            (sign_id, text, params_json, now, now),
+        )
+        return sign_id
+
+
+def get_sign(sign_id: str) -> dict[str, Any] | None:
+    with connect() as conn:
+        row = conn.execute("SELECT * FROM signs WHERE id=?", (sign_id,)).fetchone()
+    if not row:
+        return None
+    data = dict(row)
+    data["params"] = json.loads(data["params"])
+    return data

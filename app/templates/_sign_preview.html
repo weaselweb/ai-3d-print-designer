@@ -1,0 +1,35 @@
+<div class="d-flex flex-wrap gap-2 align-items-center mb-2">
+  <a class="btn btn-success btn-sm" href="{{ manifest.threemf_url }}" download>⬇ 3MF (multi-colour)</a>
+  <span class="text-secondary small ms-auto mono">
+    {{ manifest.dims_mm[0] }} × {{ manifest.dims_mm[1] }} × {{ manifest.dims_mm[2] }} mm ·
+    {{ manifest.color_count }} colour{{ 's' if manifest.color_count != 1 else '' }}
+  </span>
+</div>
+
+<div class="card bg-body-tertiary">
+  <div class="card-body py-2">
+    <h3 class="h6 mb-2">Colour bodies</h3>
+    <ul class="list-unstyled mb-2 small">
+      {% for b in manifest.bodies %}
+      <li class="d-flex align-items-center gap-2 py-1">
+        <span style="width:1rem;height:1rem;border-radius:3px;display:inline-block;
+                     background:{{ b.color }};border:1px solid #0006"></span>
+        <span class="fw-semibold text-capitalize">{{ b.name }}</span>
+        <span class="mono text-secondary">{{ b.color }}</span>
+        <a class="ms-auto small" href="{{ b.stl_url }}" download>STL</a>
+      </li>
+      {% endfor %}
+    </ul>
+    <p class="small text-secondary mb-0">
+      Open the 3MF in Anycubic Slicer Next — each body is separate; map it to an ACE Pro filament slot.
+    </p>
+  </div>
+</div>
+
+<script>
+  (function () {
+    var bodies = {{ manifest.bodies | tojson }};
+    if (window.reloadSign) window.reloadSign(bodies);
+    else window.__pendingSign = bodies;
+  })();
+</script>

@@ -20,7 +20,7 @@ core workflows, phased roadmap, tech stack, costs, risks, and research sources.
 | **1** | Describe a part in words → Claude writes CadQuery → same build/preview/download pipeline, with live parameter sliders, a manifold check, and a self-repair retry | ✅ Done |
 | **2** | Print-readiness assistant: overhang/support detection, min-wall estimate, feature-size check, auto-repair, orientation suggestion, editable printer profile + FDM tolerance/fit reference (also fed into the AI prompt) | ✅ Done |
 | **3** | Photo → fix a broken part: upload a photo, pick a **reference object** (library of cards/coins/paper/ruler + custom), click to calibrate scale (mm/px) and measure features, then Claude vision rebuilds it parametrically at the measured sizes → into the same build/preview/readiness pipeline | ✅ Done |
-| 4 | Multi-colour signs → standard 3MF for Slicer Next / ACE Pro | ⏳ Next |
+| **4** | Multi-colour signs: text + coloured plate / text / border builder → **standard multi-body 3MF** (each colour a separate object with a base material) that Anycubic Slicer Next reads and maps to ACE Pro slots. Coloured 3D preview. No API key needed. | ✅ Done |
 
 ---
 
@@ -100,6 +100,10 @@ app/
     references.py      # scale-reference library (cards, coins, paper, ruler, custom)
     scale.py           # mm-per-pixel calibration + measurement math
   print_check/         # overhang, wall, feature, repair, orientation, fit presets
+  signs/
+    builder.py         # sign geometry -> separate coloured bodies (base/text/border)
+    threemf.py         # standard multi-body / multi-material 3MF writer
+    service.py         # writes 3MF + per-body STLs + preview manifest
   services/build_service.py
   templates/  static/  # HTMX pages + three.js viewer
 tests/                 # engine + app smoke tests (no API key needed)
