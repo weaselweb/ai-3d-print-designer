@@ -1,0 +1,52 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="row g-4">
+  <div class="col-lg-7">
+    <h1 class="h3 mb-3">Describe a functional part</h1>
+    {% if error %}<div class="alert alert-danger">{{ error }}</div>{% endif %}
+    {% if not has_key %}
+      <div class="alert alert-warning py-2 small">
+        No <span class="mono">ANTHROPIC_API_KEY</span> set — AI generation is disabled.
+        Add it to <span class="mono">.env</span>, or try the demo model on the right.
+      </div>
+    {% endif %}
+    <form method="post" action="/generate">
+      <textarea class="form-control mb-2" name="prompt" rows="4"
+        placeholder="e.g. A 60 mm cable clip for a 12 mm desk edge, 3 mm cable channel, M3 screw hole"
+        {% if not has_key %}disabled{% endif %}></textarea>
+      <button class="btn btn-primary" type="submit" {% if not has_key %}disabled{% endif %}>
+        Generate design
+      </button>
+      <span class="text-secondary small ms-2">Claude writes parametric CadQuery, then it's built &amp; verified.</span>
+    </form>
+  </div>
+  <div class="col-lg-5">
+    <div class="card bg-body-tertiary">
+      <div class="card-body">
+        <h2 class="h6">No key? Try the pipeline</h2>
+        <p class="small text-secondary mb-3">
+          Builds a parametric rounded box end-to-end: execute → preview → download STL/STEP.
+        </p>
+        <form method="post" action="/demo">
+          <button class="btn btn-outline-light btn-sm" type="submit">Open demo model</button>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+
+{% if designs %}
+<hr class="my-4">
+<h2 class="h5 mb-3">Recent designs</h2>
+<div class="list-group">
+  {% for d in designs %}
+  <a class="list-group-item list-group-item-action bg-body-tertiary d-flex justify-content-between"
+     href="/design/{{ d.id }}">
+    <span><span class="fw-semibold">{{ d.name }}</span>
+      <span class="text-secondary small">— {{ d.description }}</span></span>
+    <span class="text-secondary small">{{ d.updated_at[:16].replace('T', ' ') }}</span>
+  </a>
+  {% endfor %}
+</div>
+{% endif %}
+{% endblock %}

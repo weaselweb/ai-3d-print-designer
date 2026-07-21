@@ -1,0 +1,23 @@
+<div class="d-flex flex-wrap gap-2 align-items-center mb-2">
+  <a class="btn btn-success btn-sm" href="/design/{{ design.id }}/model.stl" download>⬇ STL</a>
+  {% if has_step %}
+  <a class="btn btn-outline-success btn-sm" href="/design/{{ design.id }}/model.step" download>⬇ STEP</a>
+  {% endif %}
+  <span class="text-secondary small ms-auto mono">
+    {{ report.bbox_mm[0] }} × {{ report.bbox_mm[1] }} × {{ report.bbox_mm[2] }} mm
+    · {{ report.triangles }} tris
+    · {% if report.watertight %}<span class="text-success">watertight ✓</span>
+      {% else %}<span class="text-warning">not watertight ⚠</span>{% endif %}
+  </span>
+</div>
+{% for w in report.warnings %}
+<div class="alert alert-warning py-1 px-2 small mb-1">{{ w }}</div>
+{% endfor %}
+<!-- runs on first render and after every HTMX rebuild swap -->
+<script>
+  (function () {
+    var url = "/design/{{ design.id }}/model.stl?t=" + Date.now();
+    if (window.reloadModel) window.reloadModel(url);
+    else window.__pendingStl = url;
+  })();
+</script>
