@@ -37,12 +37,22 @@ def current_params(design: dict[str, Any], overrides: dict[str, Any] | None = No
     return params
 
 
+def body_colors(design: dict[str, Any], overrides: dict[str, str] | None = None) -> dict[str, str]:
+    colors = {b["name"]: b.get("color") for b in design.get("bodies", []) if "name" in b}
+    if overrides:
+        colors.update({k: v for k, v in overrides.items() if v})
+    return colors
+
+
 def build_design(
-    design: dict[str, Any], params: dict[str, Any], profile: PrinterProfile | None = None
+    design: dict[str, Any],
+    params: dict[str, Any],
+    profile: PrinterProfile | None = None,
+    colors: dict[str, str] | None = None,
 ) -> BuiltDesign:
     profile = profile or active_profile()
     stem = settings.generated_dir / design["id"] / "model"
-    result = build_and_export(design["code"], params, stem)
+    result = build_and_export(design["code"], params, stem, colors)
     readiness = analyze(result.stl_path, profile, repaired_out=stem.parent / "model_repaired.stl")
     return BuiltDesign(result=result, readiness=readiness, params=params)
 
@@ -53,6 +63,14 @@ def stl_path(design_id: str) -> Path:
 
 def step_path(design_id: str) -> Path:
     return settings.generated_dir / design_id / "model.step"
+
+
+def threemf_path(design_id: str) -> Path:
+    return settings.generated_dir / design_id / "model.3mf"
+
+
+def body_stl_path(design_id: str, index: int) -> Path:
+    return settings.generated_dir / design_id / f"body_{index}.stl"
 
 
 def repaired_stl_path(design_id: str) -> Path:

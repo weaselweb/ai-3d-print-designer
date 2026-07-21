@@ -29,7 +29,7 @@
 <script>
   (function () {
     var bodies = {{ manifest.bodies | tojson }};
-    if (window.reloadSign) window.reloadSign(bodies);
-    else window.__pendingSign = bodies;
+    if (window.reloadBodies) window.reloadBodies(bodies);
+    else window.__pendingBodies = bodies;
   })();
 </script>

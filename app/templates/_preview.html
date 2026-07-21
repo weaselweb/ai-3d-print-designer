@@ -1,6 +1,7 @@
 {% set badge = {"ok": "success", "warn": "warning", "info": "secondary", "fail": "danger"} %}
 <div class="d-flex flex-wrap gap-2 align-items-center mb-2">
-  <a class="btn btn-success btn-sm" href="/design/{{ design.id }}/model.stl" download>⬇ STL</a>
+  <a class="btn btn-success btn-sm" href="/design/{{ design.id }}/model.3mf" download>⬇ 3MF (multi-colour)</a>
+  <a class="btn btn-outline-success btn-sm" href="/design/{{ design.id }}/model.stl" download>⬇ STL</a>
   {% if has_step %}
   <a class="btn btn-outline-success btn-sm" href="/design/{{ design.id }}/model.step" download>⬇ STEP</a>
   {% endif %}
@@ -10,6 +11,7 @@
   <span class="text-secondary small ms-auto mono">
     {{ readiness.footprint_mm[0] }} × {{ readiness.footprint_mm[1] }} × {{ readiness.height_mm }} mm
     · {{ report.triangles }} tris
+    · {{ bodies|length }} colour{{ 's' if bodies|length != 1 else '' }}
   </span>
 </div>
 
@@ -35,8 +37,8 @@
 <!-- runs on first render and after every HTMX rebuild swap -->
 <script>
   (function () {
-    var url = "/design/{{ design.id }}/model.stl?t=" + Date.now();
-    if (window.reloadModel) window.reloadModel(url);
-    else window.__pendingStl = url;
+    var bodies = {{ bodies | tojson }};
+    if (window.reloadBodies) window.reloadBodies(bodies);
+    else window.__pendingBodies = bodies;
   })();
 </script>

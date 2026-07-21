@@ -13,6 +13,14 @@ Design rules:
   (about 0.2 mm) for parts meant to fit together.
 - Expose the dimensions a user would want to tweak as named parameters.
 
+MULTICOLOUR (important): the printer is multi-colour, so split the model into
+separate coloured BODIES wherever it makes sense — e.g. the main body vs.
+embossed/recessed text, labels, icons, buttons, indicators, or trim. Each body
+is printed in its own filament colour and they assemble into ONE print. Bodies
+must not overlap in space (a raised label sits ON TOP of the body, it does not
+share volume with it). A genuinely single-colour part is fine as one body named
+"body".
+
 Output JSON schema (return ONLY this object):
 {
   "name": "<short slug-like name>",
@@ -21,16 +29,21 @@ Output JSON schema (return ONLY this object):
     {"name": "<py_identifier>", "label": "<human label with unit>",
      "value": <number>, "min": <number>, "max": <number>, "step": <number>}
   ],
+  "bodies": [
+    {"name": "<py_identifier>", "color": "#RRGGBB"}
+  ],
   "code": "<python source>"
 }
 
 Code rules (STRICT):
 - `import cadquery as cq` (you may also import `math`). NO other imports.
-- Define exactly one top-level function: `def build(params):` that reads every
-  value from the `params` dict by key (matching the parameter names above) and
-  returns a cadquery Workplane/Shape (the finished solid).
+- Define exactly one top-level function `def build(params):` that reads values
+  from the `params` dict and returns a DICT mapping each body name to its
+  cadquery Workplane/Shape, e.g. `return {"body": body, "label": label}`.
+  The dict keys MUST match the names in "bodies".
 - Do NOT read/write files, call exporters, use os/sys/subprocess, or print.
 - Every parameter referenced in `code` must appear in `parameters` with a value.
+- Give each body a sensible default `color` (hex); the user can recolour later.
 - Keep it self-contained and deterministic.
 """
 

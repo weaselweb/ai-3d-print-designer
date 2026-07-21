@@ -42,11 +42,19 @@
       <div class="card-body">
         <h2 class="h6">Multi-colour sign</h2>
         <p class="small text-secondary mb-2">
-          Text signs with a coloured plate, text and border → <strong>standard 3MF</strong>
-          for Slicer Next / ACE Pro. No API key needed.
+          Coloured plate / text / border → <strong>standard 3MF</strong> for Slicer Next / ACE Pro.
         </p>
+        <form method="post" action="/signs/generate" class="mb-2">
+          <textarea class="form-control form-control-sm mb-2" name="prompt" rows="2"
+            placeholder="Describe a sign, e.g. a 120mm CAUTION sign with a yellow warning triangle"
+            {% if not has_key %}disabled{% endif %}></textarea>
+          <button class="btn btn-primary btn-sm" type="submit" {% if not has_key %}disabled{% endif %}>
+            Generate sign with AI
+          </button>
+        </form>
         <form method="post" action="/signs/new">
-          <button class="btn btn-outline-light btn-sm" type="submit">Create a sign</button>
+          <button class="btn btn-outline-light btn-sm" type="submit">…or use the form builder</button>
+          <span class="small text-secondary ms-1">no key needed</span>
         </form>
       </div>
     </div>

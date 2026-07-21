@@ -40,20 +40,38 @@ db.init_db()
 # --------------------------------------------------------------------------- #
 # Helpers
 # --------------------------------------------------------------------------- #
-def _build_and_store(design: dict[str, Any], overrides: dict[str, Any] | None = None) -> dict[str, Any]:
+def _build_and_store(
+    design: dict[str, Any],
+    overrides: dict[str, Any] | None = None,
+    color_overrides: dict[str, str] | None = None,
+) -> dict[str, Any]:
     params = builder.current_params(design, overrides)
-    built = builder.build_design(design, params)
-    # persist any override values back onto the parameter set
-    if overrides:
+    colors = builder.body_colors(design, color_overrides)
+    built = builder.build_design(design, params, colors=colors)
+
+    if overrides:  # persist dimensional changes
         for p in design["parameters"]:
             if p["name"] in params:
                 p["value"] = params[p["name"]]
         db.update_parameters(design["id"], design["parameters"])
+
+    # Sync body metadata (names + resolved colours) so the pickers + 3MF stay in step.
+    result_bodies = [{"name": b.name, "color": b.color} for b in built.result.bodies]
+    if result_bodies != design.get("bodies"):
+        db.update_bodies(design["id"], result_bodies)
+        design["bodies"] = result_bodies
+
+    manifest = [
+        {"index": b.index, "name": b.name, "color": b.color,
+         "stl_url": f"/design/{design['id']}/body/{b.index}.stl"}
+        for b in built.result.bodies
+    ]
     return {
         "report": built.result.report,
         "readiness": built.readiness,
         "has_step": built.result.step_path is not None,
         "has_repaired": built.readiness.repaired,
+        "bodies": manifest,
         "params": params,
     }
 
@@ -65,6 +83,7 @@ def _preview_ctx(design: dict[str, Any], result: dict[str, Any]) -> dict[str, An
         "readiness": result["readiness"],
         "has_step": result["has_step"],
         "has_repaired": result["has_repaired"],
+        "bodies": result["bodies"],
     }
 
 
@@ -117,7 +136,7 @@ def generate(request: Request, prompt: str = Form(...)):
         )
     design_id = db.save_design(
         design_id=None, name=gen.name, description=gen.description, prompt=prompt,
-        engine="cadquery", code=gen.code, parameters=gen.parameters,
+        engine="cadquery", code=gen.code, parameters=gen.parameters, bodies=gen.bodies,
     )
     design = db.get_design(design_id)
     _build_and_store(design)
@@ -149,8 +168,13 @@ async def rebuild(request: Request, design_id: str):
                 overrides[name] = _coerce(str(form[name]))
             except ValueError:
                 pass
+    color_overrides: dict[str, str] = {}
+    for b in design.get("bodies", []):
+        key = f"color_{b['name']}"
+        if form.get(key):
+            color_overrides[b["name"]] = str(form[key])
     try:
-        result = _build_and_store(design, overrides)
+        result = _build_and_store(design, overrides, color_overrides)
     except (CadExecutionError, UnsafeCodeError) as exc:
         return HTMLResponse(f'<div class="alert alert-danger mb-0">Build failed: {exc}</div>',
                             status_code=400)
@@ -175,6 +199,22 @@ def get_step(design_id: str):
     if not path.exists():
         raise HTTPException(404, "STEP not available")
     return FileResponse(path, media_type="application/step", filename=f"{design_id}.step")
+
+
+@app.get("/design/{design_id}/model.3mf")
+def get_design_3mf(design_id: str):
+    path = builder.threemf_path(design_id)
+    if not path.exists():
+        raise HTTPException(404, "3MF not built yet")
+    return FileResponse(path, media_type="model/3mf", filename=f"{design_id}.3mf")
+
+
+@app.get("/design/{design_id}/body/{index}.stl")
+def get_design_body(design_id: str, index: int):
+    path = builder.body_stl_path(design_id, index)
+    if not path.exists():
+        raise HTTPException(404, "Body not found")
+    return FileResponse(path, media_type="model/stl", filename=f"{design_id}-{index}.stl")
 
 
 @app.get("/design/{design_id}/repaired.stl")
@@ -253,7 +293,7 @@ async def capture_build(request: Request, capture_id: str):
     design_id = db.save_design(
         design_id=None, name=gen.name, description=gen.description,
         prompt=f"[reconstructed from photo] {payload.get('description', '')}",
-        engine="cadquery", code=gen.code, parameters=gen.parameters,
+        engine="cadquery", code=gen.code, parameters=gen.parameters, bodies=gen.bodies,
     )
     db.attach_design_to_capture(capture_id, design_id)
     _build_and_store(db.get_design(design_id))
@@ -291,6 +331,32 @@ def sign_new():
     sign_id = db.save_sign(None, params["text"], params)
     sign_service.build_sign(sign_id, params)
     return HTMLResponse(status_code=303, headers={"Location": f"/signs/{sign_id}"})
+
+
+@app.post("/signs/generate", response_class=HTMLResponse)
+def sign_generate(request: Request, prompt: str = Form(...)):
+    """AI sign: describe it -> Claude builds a multi-colour sign as a design."""
+    from .ai.generator import GenerationError, generate as ai_generate
+
+    framed = (
+        "Design a multi-colour, 3D-printable SIGN or nameplate as a flat plate that "
+        "prints face-up. Use separate coloured bodies for the base plate, the raised "
+        "text/lettering, and any border or graphic elements. Request:\n" + prompt
+    )
+    try:
+        gen = ai_generate(framed, profile=builder.active_profile().as_dict())
+    except GenerationError as exc:
+        return templates.TemplateResponse(
+            request, "index.html",
+            {"designs": db.list_designs(), "has_key": bool(settings.anthropic_api_key),
+             "error": str(exc)}, status_code=400,
+        )
+    design_id = db.save_design(
+        design_id=None, name=gen.name, description=gen.description, prompt=f"[sign] {prompt}",
+        engine="cadquery", code=gen.code, parameters=gen.parameters, bodies=gen.bodies,
+    )
+    _build_and_store(db.get_design(design_id))
+    return HTMLResponse(status_code=303, headers={"Location": f"/design/{design_id}"})
 
 
 @app.get("/signs/{sign_id}", response_class=HTMLResponse)

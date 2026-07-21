@@ -22,6 +22,7 @@ CREATE TABLE IF NOT EXISTS designs (
     engine      TEXT NOT NULL DEFAULT 'cadquery',
     code        TEXT NOT NULL,
     parameters  TEXT NOT NULL DEFAULT '[]',   -- JSON list of param definitions
+    bodies      TEXT NOT NULL DEFAULT '[]',   -- JSON list of {name, color}
     created_at  TEXT NOT NULL,
     updated_at  TEXT NOT NULL
 );
@@ -88,22 +89,24 @@ def save_design(
     engine: str,
     code: str,
     parameters: list[dict[str, Any]],
+    bodies: list[dict[str, Any]] | None = None,
 ) -> str:
     now = _now()
     params_json = json.dumps(parameters)
+    bodies_json = json.dumps(bodies or [])
     with connect() as conn:
         if design_id and conn.execute("SELECT 1 FROM designs WHERE id=?", (design_id,)).fetchone():
             conn.execute(
                 """UPDATE designs SET name=?, description=?, prompt=?, engine=?, code=?,
-                   parameters=?, updated_at=? WHERE id=?""",
-                (name, description, prompt, engine, code, params_json, now, design_id),
+                   parameters=?, bodies=?, updated_at=? WHERE id=?""",
+                (name, description, prompt, engine, code, params_json, bodies_json, now, design_id),
             )
             return design_id
         design_id = design_id or new_id()
         conn.execute(
             """INSERT INTO designs (id, name, description, prompt, engine, code, parameters,
-               created_at, updated_at) VALUES (?,?,?,?,?,?,?,?,?)""",
-            (design_id, name, description, prompt, engine, code, params_json, now, now),
+               bodies, created_at, updated_at) VALUES (?,?,?,?,?,?,?,?,?,?)""",
+            (design_id, name, description, prompt, engine, code, params_json, bodies_json, now, now),
         )
         return design_id
 
@@ -115,7 +118,16 @@ def get_design(design_id: str) -> dict[str, Any] | None:
         return None
     data = dict(row)
     data["parameters"] = json.loads(data["parameters"])
+    data["bodies"] = json.loads(data["bodies"])
     return data
+
+
+def update_bodies(design_id: str, bodies: list[dict[str, Any]]) -> None:
+    with connect() as conn:
+        conn.execute(
+            "UPDATE designs SET bodies=?, updated_at=? WHERE id=?",
+            (json.dumps(bodies), _now(), design_id),
+        )
 
 
 def list_designs(limit: int = 50) -> list[dict[str, Any]]:

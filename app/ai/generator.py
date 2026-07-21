@@ -26,6 +26,7 @@ class GeneratedDesign:
     description: str
     parameters: list[dict[str, Any]]
     code: str
+    bodies: list[dict[str, Any]]
 
 
 class GenerationError(RuntimeError):
@@ -50,11 +51,13 @@ def _extract_json(text: str) -> dict[str, Any]:
 
 def _to_design(payload: dict[str, Any]) -> GeneratedDesign:
     try:
+        bodies = list(payload.get("bodies") or [{"name": "body", "color": "#3b82f6"}])
         return GeneratedDesign(
             name=str(payload["name"]).strip() or "part",
             description=str(payload.get("description", "")).strip(),
             parameters=list(payload.get("parameters", [])),
             code=str(payload["code"]),
+            bodies=bodies,
         )
     except KeyError as exc:
         raise GenerationError(f"Model JSON missing field: {exc}") from exc

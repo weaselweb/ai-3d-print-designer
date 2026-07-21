@@ -21,6 +21,7 @@ core workflows, phased roadmap, tech stack, costs, risks, and research sources.
 | **2** | Print-readiness assistant: overhang/support detection, min-wall estimate, feature-size check, auto-repair, orientation suggestion, editable printer profile + FDM tolerance/fit reference (also fed into the AI prompt) | ✅ Done |
 | **3** | Photo → fix a broken part: upload a photo, pick a **reference object** (library of cards/coins/paper/ruler + custom), click to calibrate scale (mm/px) and measure features, then Claude vision rebuilds it parametrically at the measured sizes → into the same build/preview/readiness pipeline | ✅ Done |
 | **4** | Multi-colour signs: text + coloured plate / text / border builder → **standard multi-body 3MF** (each colour a separate object with a base material) that Anycubic Slicer Next reads and maps to ACE Pro slots. Coloured 3D preview. No API key needed. | ✅ Done |
+| **4.5** | **Multicolour everywhere**: the generation contract now returns named coloured **bodies**; the AI splits parts into logical colours you can recolour; **every design exports a multi-body 3MF** (+ STL/STEP); one colour-aware multi-body 3D preview shared across designs & signs; **AI sign generation** ("describe a sign") added alongside the form builder | ✅ Done |
 
 ---
 
@@ -70,9 +71,14 @@ FastAPI
    └─ /design/{id}/model.stl|step   downloads
 ```
 
-- **Parametric, not mesh.** The AI writes *code* (`build(params) -> solid`), so parts
-  are dimensionally exact, editable, and watertight — the right tool for functional
-  prints. (Mesh generation for organic shapes comes in a later phase; see PLAN.md.)
+- **Multicolour by default.** The AI splits every model into named coloured **bodies**
+  (`build(params) -> {"body": ..., "label": ...}`); each is printed in its own filament
+  and they assemble into ONE print. You recolour bodies in the UI, and **every design
+  exports a standard multi-body 3MF** (a single-colour part is just one body) alongside
+  STL/STEP. Signs can be created by the AI (describe them) or the form builder.
+- **Parametric, not mesh.** The AI writes *code*, so parts are dimensionally exact,
+  editable, and watertight — the right tool for functional prints. (Organic mesh
+  generation comes later; see PLAN.md.)
 - **Designs are re-editable.** SQLite stores the CadQuery source + parameter set, not
   just a mesh, so you can reopen a part and change one number.
 - **Every export is inspected** and scored for printability (`app/print_check/`):
