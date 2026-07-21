@@ -1,0 +1,28 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+env/
+*.egg-info/
+.pytest_cache/
+
+# Secrets / config
+.env
+*.local
+
+# App data & generated artifacts
+app.db
+data/
+uploads/
+generated/
+*.stl
+*.step
+*.3mf
+*.glb
+*.obj
+
+# OS / editor
+.DS_Store
+.idea/
+.vscode/
