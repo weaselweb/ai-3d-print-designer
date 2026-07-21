@@ -34,6 +34,22 @@ Code rules (STRICT):
 - Keep it self-contained and deterministic.
 """
 
+PROFILE_NOTE = """\
+
+Active printer profile (design for this):
+- Nozzle diameter: {nozzle_diameter} mm  (keep walls >= {min_wall} mm)
+- Layer height: {layer_height} mm
+- Default clearance for mating parts: {default_clearance} mm per side
+  (add it to holes / subtract it from pins so parts actually fit).
+"""
+
+
+def system_prompt(profile: dict | None = None) -> str:
+    if not profile:
+        return SYSTEM_PROMPT
+    return SYSTEM_PROMPT + PROFILE_NOTE.format(**profile)
+
+
 REPAIR_PROMPT = """\
 The previous CadQuery code failed. Fix it and return the SAME JSON object schema.
 Keep the parameters stable where possible.

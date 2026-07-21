@@ -19,6 +19,12 @@ class Settings(BaseSettings):
     app_port: int = 8000
     data_dir: Path = Path("./data")
 
+    # Printer profile — drives the print-readiness checks and the AI prompt.
+    nozzle_diameter: float = 0.4          # mm
+    layer_height: float = 0.2             # mm
+    overhang_threshold_deg: float = 45.0  # steeper (more horizontal) overhangs need support
+    default_clearance: float = 0.2        # mm per side, for mating parts
+
     @property
     def generated_dir(self) -> Path:
         return self.data_dir / "generated"

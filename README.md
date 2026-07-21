@@ -18,8 +18,8 @@ core workflows, phased roadmap, tech stack, costs, risks, and research sources.
 |---|---|---|
 | **0** | FastAPI + SQLite + three.js preview; parametric **demo** model → build → download STL/STEP | ✅ Done |
 | **1** | Describe a part in words → Claude writes CadQuery → same build/preview/download pipeline, with live parameter sliders, a manifold check, and a self-repair retry | ✅ Done |
-| 2 | Print-readiness assistant (wall thickness, tolerance/fit presets, orientation) | ⏳ Next |
-| 3 | Photo measurement + broken-part fix (credit-card scale reference) | ⏳ Planned |
+| **2** | Print-readiness assistant: overhang/support detection, min-wall estimate, feature-size check, auto-repair, orientation suggestion, editable printer profile + FDM tolerance/fit reference (also fed into the AI prompt) | ✅ Done |
+| 3 | Photo measurement + broken-part fix (credit-card scale reference) | ⏳ Next |
 | 4 | Multi-colour signs → standard 3MF for Slicer Next / ACE Pro | ⏳ Planned |
 
 ---
@@ -75,7 +75,12 @@ FastAPI
   prints. (Mesh generation for organic shapes comes in a later phase; see PLAN.md.)
 - **Designs are re-editable.** SQLite stores the CadQuery source + parameter set, not
   just a mesh, so you can reopen a part and change one number.
-- **Every export is inspected** (watertight / bbox / triangle count) via `trimesh`.
+- **Every export is inspected** and scored for printability (`app/print_check/`):
+  watertight (+ auto-repair), overhangs that need support, an estimated minimum
+  wall thickness (inward ray casting), smallest feature vs. nozzle, and a
+  suggested orientation. The printer profile (nozzle Ø, layer height, overhang
+  angle, default clearance) is editable in the UI and is also injected into the
+  AI prompt so generated parts respect your nozzle and fit clearances.
 
 ## Project layout
 

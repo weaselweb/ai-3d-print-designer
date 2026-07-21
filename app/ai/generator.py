@@ -13,7 +13,7 @@ from typing import Any
 from ..config import settings
 from ..cad.executor import CadExecutionError, run_build
 from ..cad.validate import UnsafeCodeError
-from .prompts import REPAIR_PROMPT, SYSTEM_PROMPT
+from .prompts import REPAIR_PROMPT, system_prompt
 
 
 @dataclass
@@ -60,7 +60,7 @@ def _default_params(design: GeneratedDesign) -> dict[str, Any]:
     return {p["name"]: p["value"] for p in design.parameters if "name" in p and "value" in p}
 
 
-def _call_claude(messages: list[dict[str, str]]) -> str:
+def _call_claude(messages: list[dict[str, str]], system: str) -> str:
     if not settings.anthropic_api_key:
         raise GenerationError(
             "ANTHROPIC_API_KEY is not set. Add it to .env to use AI generation "
@@ -72,16 +72,17 @@ def _call_claude(messages: list[dict[str, str]]) -> str:
     resp = client.messages.create(
         model=settings.anthropic_model,
         max_tokens=settings.anthropic_max_tokens,
-        system=SYSTEM_PROMPT,
+        system=system,
         messages=messages,
     )
     return "".join(block.text for block in resp.content if block.type == "text")
 
 
-def generate(prompt: str) -> GeneratedDesign:
+def generate(prompt: str, profile: dict | None = None) -> GeneratedDesign:
     """Generate a parametric design and verify it actually builds (one retry)."""
+    system = system_prompt(profile)
     messages = [{"role": "user", "content": prompt}]
-    design = _to_design(_extract_json(_call_claude(messages)))
+    design = _to_design(_extract_json(_call_claude(messages, system)))
 
     try:
         run_build(design.code, _default_params(design))
@@ -90,7 +91,7 @@ def generate(prompt: str) -> GeneratedDesign:
         # Self-repair: hand the error back to the model once.
         repair = REPAIR_PROMPT.format(error=str(exc), code=design.code)
         messages.append({"role": "user", "content": repair})
-        design = _to_design(_extract_json(_call_claude(messages)))
+        design = _to_design(_extract_json(_call_claude(messages, system)))
         try:
             run_build(design.code, _default_params(design))
         except (CadExecutionError, UnsafeCodeError) as exc2:
