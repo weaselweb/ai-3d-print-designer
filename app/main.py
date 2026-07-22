@@ -172,7 +172,17 @@ def design_page(request: Request, design_id: str):
     design = db.get_design(design_id)
     if not design:
         raise HTTPException(404, "Design not found")
-    result = _build_and_store(design)
+    try:
+        result = _build_and_store(design)
+    except (CadExecutionError, UnsafeCodeError) as exc:
+        return templates.TemplateResponse(
+            request,
+            "index.html",
+            {"designs": db.list_designs(),
+             "has_key": bool(settings.anthropic_api_key),
+             "error": f"'{design['name']}' can't be displayed — build failed: {exc}"},
+            status_code=400,
+        )
     ctx = _preview_ctx(design, result)
     ctx.update({"profile": builder.active_profile().as_dict(), "fit_presets": FIT_PRESETS})
     return templates.TemplateResponse(request, "design.html", ctx)

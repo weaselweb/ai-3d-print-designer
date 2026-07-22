@@ -3,6 +3,8 @@ FROM python:3.11-slim
 # CadQuery/OCP need a few shared libs for headless geometry kernels.
 RUN apt-get update && apt-get install -y --no-install-recommends \
       libgl1 libglu1-mesa libxrender1 libxext6 libsm6 \
+      fontconfig fonts-dejavu-core \
+    && fc-cache -f \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
