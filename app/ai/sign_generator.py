@@ -97,3 +97,27 @@ def generate_sign_params(prompt: str) -> dict[str, Any]:
     if params.get("hole_position") not in ("top", "sides"):
         params["hole_position"] = "sides"
     return params
+
+
+def generate_phrase(theme: str) -> str:
+    """Cheap reroll: a new short phrase in the same vein, keeping the rest of
+    the sign design untouched -- tiny prompt, tiny output, not the full schema."""
+    if not settings.anthropic_api_key:
+        raise SignGenerationError("ANTHROPIC_API_KEY is not set. Add it to .env to reroll text.")
+    import anthropic
+
+    client = anthropic.Anthropic(api_key=settings.anthropic_api_key)
+    resp = client.messages.create(
+        model=settings.anthropic_model,
+        max_tokens=60,
+        system=(
+            "Write ONE new short, funny sign phrase in the same theme/style as the "
+            "user's message. Return ONLY the phrase text -- no quotes, no preamble, "
+            "nothing else."
+        ),
+        messages=[{"role": "user", "content": theme}],
+    )
+    text = "".join(block.text for block in resp.content if block.type == "text").strip().strip('"')
+    if not text:
+        raise SignGenerationError("Model returned an empty phrase.")
+    return text

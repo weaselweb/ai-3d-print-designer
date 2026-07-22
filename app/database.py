@@ -53,6 +53,7 @@ CREATE TABLE IF NOT EXISTS captures (
 CREATE TABLE IF NOT EXISTS signs (
     id          TEXT PRIMARY KEY,
     text        TEXT NOT NULL DEFAULT '',
+    prompt      TEXT NOT NULL DEFAULT '',     -- original theme, so "new phrase" can re-ask cheaply
     params      TEXT NOT NULL DEFAULT '{}',   -- JSON: dims + colours + toggles
     created_at  TEXT NOT NULL,
     updated_at  TEXT NOT NULL
@@ -79,6 +80,9 @@ def connect() -> sqlite3.Connection:
 def init_db() -> None:
     with connect() as conn:
         conn.executescript(SCHEMA)
+        cols = {row["name"] for row in conn.execute("PRAGMA table_info(signs)")}
+        if "prompt" not in cols:
+            conn.execute("ALTER TABLE signs ADD COLUMN prompt TEXT NOT NULL DEFAULT ''")
 
 
 def save_design(
@@ -207,20 +211,26 @@ def attach_design_to_capture(capture_id: str, design_id: str) -> None:
 # --------------------------------------------------------------------------- #
 # Signs (multi-colour)
 # --------------------------------------------------------------------------- #
-def save_sign(sign_id: str | None, text: str, params: dict[str, Any]) -> str:
+def save_sign(sign_id: str | None, text: str, params: dict[str, Any], prompt: str = "") -> str:
     now = _now()
     params_json = json.dumps(params)
     with connect() as conn:
         if sign_id and conn.execute("SELECT 1 FROM signs WHERE id=?", (sign_id,)).fetchone():
-            conn.execute(
-                "UPDATE signs SET text=?, params=?, updated_at=? WHERE id=?",
-                (text, params_json, now, sign_id),
-            )
+            if prompt:
+                conn.execute(
+                    "UPDATE signs SET text=?, params=?, prompt=?, updated_at=? WHERE id=?",
+                    (text, params_json, prompt, now, sign_id),
+                )
+            else:
+                conn.execute(
+                    "UPDATE signs SET text=?, params=?, updated_at=? WHERE id=?",
+                    (text, params_json, now, sign_id),
+                )
             return sign_id
         sign_id = sign_id or new_id()
         conn.execute(
-            "INSERT INTO signs (id, text, params, created_at, updated_at) VALUES (?,?,?,?,?)",
-            (sign_id, text, params_json, now, now),
+            "INSERT INTO signs (id, text, params, prompt, created_at, updated_at) VALUES (?,?,?,?,?,?)",
+            (sign_id, text, params_json, prompt, now, now),
         )
         return sign_id
 

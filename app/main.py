@@ -428,8 +428,28 @@ def sign_generate(request: Request, prompt: str = Form(...)):
             {"designs": db.list_designs(), "has_key": bool(settings.anthropic_api_key),
              "has_meshy_key": bool(settings.meshy_api_key), "error": str(exc)}, status_code=400,
         )
-    sign_id = db.save_sign(None, params["text"], params)
+    sign_id = db.save_sign(None, params["text"], params, prompt=prompt)
     sign_service.build_sign(sign_id, params)
+    return HTMLResponse(status_code=303, headers={"Location": f"/signs/{sign_id}"})
+
+
+@app.post("/signs/{sign_id}/reroll-text", response_class=HTMLResponse)
+def sign_reroll_text(sign_id: str):
+    """Ask for just a new phrase in the same theme -- tiny prompt/output, not
+    the full design schema, to keep this cheap."""
+    from .ai.sign_generator import SignGenerationError, generate_phrase
+
+    sign = db.get_sign(sign_id)
+    if not sign:
+        raise HTTPException(404, "Sign not found")
+    theme = sign.get("prompt") or sign["text"]
+    try:
+        text = generate_phrase(theme)
+    except SignGenerationError as exc:
+        return HTMLResponse(f'<div class="alert alert-danger mb-0">{exc}</div>', status_code=400)
+    params = dict(sign["params"])
+    params["text"] = text
+    db.save_sign(sign_id, text, params)
     return HTMLResponse(status_code=303, headers={"Location": f"/signs/{sign_id}"})
 
 
@@ -444,7 +464,8 @@ def sign_page(request: Request, sign_id: str):
     manifest = sign_service.build_sign(sign_id, sign["params"])
     return templates.TemplateResponse(
         request, "signs.html",
-        {"sign": sign, "manifest": manifest, "defaults": SIGN_DEFAULTS, "icon_names": sorted(ICONS)},
+        {"sign": sign, "manifest": manifest, "defaults": SIGN_DEFAULTS, "icon_names": sorted(ICONS),
+         "has_key": bool(settings.anthropic_api_key)},
     )
 
 

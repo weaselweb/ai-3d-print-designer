@@ -14,6 +14,7 @@
 
 <div class="row g-4">
   <div class="col-lg-4">
+    <form id="reroll-text-form" method="post" action="/signs/{{ sign.id }}/reroll-text"></form>
     <form hx-post="/signs/{{ sign.id }}/rebuild" hx-target="#sign-preview" hx-swap="innerHTML"
           hx-indicator="#sign-spin">
       {% set p = sign.params %}
@@ -22,6 +23,12 @@
           <h2 class="h6">Text</h2>
           <input class="form-control form-control-sm mb-2" name="text" value="{{ p.text }}"
                  placeholder="Sign text">
+          {% if has_key %}
+          <button type="submit" form="reroll-text-form" class="btn btn-outline-light btn-sm mb-2">
+            🎲 New phrase, keep design
+          </button>
+          <span class="text-secondary small">— cheap: just asks for new text, not a full redesign</span>
+          {% endif %}
           <div class="row g-2">
             <div class="col-6"><label class="small">Text size (mm)</label>
               <input class="form-control form-control-sm" name="text_size" type="number" step="1" value="{{ p.text_size }}"></div>
