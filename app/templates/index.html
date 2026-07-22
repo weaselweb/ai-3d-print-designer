@@ -55,13 +55,8 @@
         </p>
         <form method="post" action="/signs/generate" class="mb-2">
           <textarea class="form-control form-control-sm mb-2" name="prompt" rows="2"
-            placeholder="Describe a sign, e.g. a 120mm CAUTION sign with a yellow warning triangle"
+            placeholder="Describe a sign, e.g. a 120mm CAUTION sign with a radiation icon"
             {% if not has_key %}disabled{% endif %}></textarea>
-          <div class="form-check mb-2">
-            <input class="form-check-input" type="checkbox" name="autofix" id="autofix-sign"
-                   {% if not has_key %}disabled{% endif %}>
-            <label class="form-check-label small" for="autofix-sign">Auto-fix for printability</label>
-          </div>
           <button class="btn btn-primary btn-sm" type="submit" {% if not has_key %}disabled{% endif %}>
             Generate sign with AI
           </button>

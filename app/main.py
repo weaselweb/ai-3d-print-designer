@@ -378,11 +378,14 @@ async def capture_build(request: Request, capture_id: str):
 # Phase 4: multi-colour signs -> standard 3MF for Slicer Next / ACE Pro
 # --------------------------------------------------------------------------- #
 _SIGN_NUM = ("plate_w", "plate_h", "plate_thickness", "corner_radius", "text_size",
-             "text_height", "border_width", "border_height", "hole_diameter")
-_SIGN_COLORS = ("base_color", "text_color", "border_color")
+             "text_height", "border_width", "border_height", "hole_diameter",
+             "icon_size", "icon_x", "icon_y")
+_SIGN_COLORS = ("base_color", "text_color", "border_color", "icon_color")
 
 
 def _parse_sign_form(form: Any, base: dict[str, Any]) -> dict[str, Any]:
+    from .signs.icons import ICONS
+
     p = dict(base)
     p["text"] = str(form.get("text", ""))
     for k in _SIGN_NUM:
@@ -396,6 +399,9 @@ def _parse_sign_form(form: Any, base: dict[str, Any]) -> dict[str, Any]:
             p[k] = str(form[k])
     p["border"] = form.get("border") is not None  # unchecked checkbox is absent
     p["holes"] = form.get("holes") is not None
+    p["flat"] = form.get("flat") is not None
+    icon = str(form.get("icon", "")).strip()
+    p["icon"] = icon if icon in ICONS else ""
     return p
 
 
@@ -408,30 +414,21 @@ def sign_new():
 
 
 @app.post("/signs/generate", response_class=HTMLResponse)
-def sign_generate(request: Request, prompt: str = Form(...), autofix: str = Form(None)):
-    """AI sign: describe it -> Claude builds a multi-colour sign as a design."""
-    from .ai.generator import GenerationError
+def sign_generate(request: Request, prompt: str = Form(...)):
+    """AI sign: describe it -> structured params -> the deterministic sign engine."""
+    from .ai.sign_generator import SignGenerationError, generate_sign_params
 
-    framed = (
-        "Design a multi-colour, 3D-printable SIGN or nameplate as a flat plate that "
-        "prints face-up. Use separate coloured bodies for the base plate, the raised "
-        "text/lettering, and any border or graphic elements. Request:\n" + prompt
-    )
     try:
-        gen, log = _generate_maybe_refine(framed, autofix is not None)
-    except GenerationError as exc:
+        params = generate_sign_params(prompt)
+    except SignGenerationError as exc:
         return templates.TemplateResponse(
             request, "index.html",
             {"designs": db.list_designs(), "has_key": bool(settings.anthropic_api_key),
              "has_meshy_key": bool(settings.meshy_api_key), "error": str(exc)}, status_code=400,
         )
-    design_id = db.save_design(
-        design_id=None, name=gen.name, description=gen.description, prompt=f"[sign] {prompt}",
-        engine="cadquery", code=gen.code, parameters=gen.parameters, bodies=gen.bodies,
-        agent_log=log,
-    )
-    _build_and_store(db.get_design(design_id))
-    return HTMLResponse(status_code=303, headers={"Location": f"/design/{design_id}"})
+    sign_id = db.save_sign(None, params["text"], params)
+    sign_service.build_sign(sign_id, params)
+    return HTMLResponse(status_code=303, headers={"Location": f"/signs/{sign_id}"})
 
 
 @app.get("/signs/{sign_id}", response_class=HTMLResponse)
@@ -439,9 +436,13 @@ def sign_page(request: Request, sign_id: str):
     sign = db.get_sign(sign_id)
     if not sign:
         raise HTTPException(404, "Sign not found")
+    from .signs.icons import ICONS
+
+    sign["params"] = {**SIGN_DEFAULTS, **sign["params"]}  # backfill fields older signs predate
     manifest = sign_service.build_sign(sign_id, sign["params"])
     return templates.TemplateResponse(
-        request, "signs.html", {"sign": sign, "manifest": manifest, "defaults": SIGN_DEFAULTS},
+        request, "signs.html",
+        {"sign": sign, "manifest": manifest, "defaults": SIGN_DEFAULTS, "icon_names": sorted(ICONS)},
     )
 
 
