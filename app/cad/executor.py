@@ -219,3 +219,30 @@ def build_and_export(
 ) -> BuildResult:
     objs = run_build(code, params)
     return export_design(objs, stem, colors)
+
+
+def import_mesh_design(stl_bytes: bytes, stem: Path, color: str = "#c8c8c8") -> BuildResult:
+    """Turn a downloaded mesh (e.g. from Meshy) into the same STL/3MF/report shape
+    a CadQuery build produces. No STEP — it's a mesh, not a B-rep."""
+    import io
+
+    import trimesh
+
+    stem.parent.mkdir(parents=True, exist_ok=True)
+    mesh = trimesh.load(io.BytesIO(stl_bytes), file_type="stl", force="mesh")
+
+    stl_path = stem.with_suffix(".stl")
+    mesh.export(str(stl_path))
+
+    body_stl = stem.parent / "body_0.stl"
+    mesh.export(str(body_stl))
+
+    threemf_path = stem.with_suffix(".3mf")
+    write_3mf(threemf_path, [Body("body", mesh, color)])
+
+    report = inspect_mesh(stl_path)
+    body_info = BodyInfo(index=0, name="body", color=color, stl_path=body_stl)
+    return BuildResult(
+        stl_path=stl_path, step_path=None, threemf_path=threemf_path,
+        report=report, bodies=[body_info],
+    )

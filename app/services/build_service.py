@@ -6,7 +6,13 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-from ..cad.executor import BuildResult, build_and_export
+from ..cad.executor import (
+    BodyInfo,
+    BuildResult,
+    build_and_export,
+    import_mesh_design,
+    inspect_mesh,
+)
 from ..config import settings
 from ..print_check.analyze import PrintReadiness, analyze
 from ..print_check.profile import PrinterProfile
@@ -55,6 +61,29 @@ def build_design(
     result = build_and_export(design["code"], params, stem, colors)
     readiness = analyze(result.stl_path, profile, repaired_out=stem.parent / "model_repaired.stl")
     return BuiltDesign(result=result, readiness=readiness, params=params)
+
+
+def finalize_meshy_design(design_id: str, stl_bytes: bytes, color: str) -> BuiltDesign:
+    """One-time write of a freshly downloaded Meshy mesh to this design's files."""
+    stem = settings.generated_dir / design_id / "model"
+    result = import_mesh_design(stl_bytes, stem, color)
+    readiness = analyze(result.stl_path, active_profile(), repaired_out=stem.parent / "model_repaired.stl")
+    return BuiltDesign(result=result, readiness=readiness, params={})
+
+
+def build_meshy_design(design: dict[str, Any]) -> BuiltDesign:
+    """Re-inspect an already-generated Meshy design's files (no API call)."""
+    stem = settings.generated_dir / design["id"] / "model"
+    stl = stem.with_suffix(".stl")
+    color = (design.get("bodies") or [{"color": "#c8c8c8"}])[0].get("color", "#c8c8c8")
+    report = inspect_mesh(stl)
+    readiness = analyze(stl, active_profile(), repaired_out=stem.parent / "model_repaired.stl")
+    body = BodyInfo(index=0, name="body", color=color, stl_path=stem.parent / "body_0.stl")
+    result = BuildResult(
+        stl_path=stl, step_path=None, threemf_path=stem.with_suffix(".3mf"),
+        report=report, bodies=[body],
+    )
+    return BuiltDesign(result=result, readiness=readiness, params={})
 
 
 def stl_path(design_id: str) -> Path:

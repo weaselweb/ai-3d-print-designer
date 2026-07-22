@@ -72,6 +72,32 @@
         </form>
       </div>
     </div>
+    <div class="card bg-body-tertiary mb-3">
+      <div class="card-body">
+        <h2 class="h6">Figure / trophy / character</h2>
+        <p class="small text-secondary mb-2">
+          Organic, sculptural shapes — funny trophies, characters, decorative figures.
+          Uses <a href="https://www.meshy.ai" target="_blank" rel="noopener">Meshy</a>'s mesh
+          generator instead of CadQuery, since that's the right tool for shapes like this
+          (not dimensionally-precise functional parts).
+        </p>
+        {% if not has_meshy_key %}
+          <div class="alert alert-warning py-2 small mb-2">
+            No <span class="mono">MESHY_API_KEY</span> set — add one to
+            <span class="mono">.env</span> to enable this.
+          </div>
+        {% endif %}
+        <form method="post" action="/figure/generate">
+          <textarea class="form-control form-control-sm mb-2" name="prompt" rows="2"
+            placeholder="e.g. a funny trophy of a cat wearing sunglasses, holding a fish"
+            {% if not has_meshy_key %}disabled{% endif %}></textarea>
+          <button class="btn btn-primary btn-sm" type="submit" {% if not has_meshy_key %}disabled{% endif %}>
+            Generate figure
+          </button>
+          <span class="text-secondary small ms-1">takes ~1-2 minutes</span>
+        </form>
+      </div>
+    </div>
     <div class="card bg-body-tertiary">
       <div class="card-body">
         <h2 class="h6">No key? Try the pipeline</h2>

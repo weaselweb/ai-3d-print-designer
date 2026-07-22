@@ -116,10 +116,12 @@
       </table>
     </details>
 
+    {% if design.engine == 'cadquery' %}
     <details class="mt-2">
       <summary class="small text-secondary">View CadQuery source</summary>
       <pre class="mono small mt-2 p-2 bg-body-tertiary rounded" style="white-space:pre-wrap">{{ design.code }}</pre>
     </details>
+    {% endif %}
   </div>
 
   <!-- Preview + status -->

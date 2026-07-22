@@ -14,6 +14,9 @@ class Settings(BaseSettings):
     anthropic_model: str = "claude-opus-4-8"
     anthropic_max_tokens: int = 8000
 
+    # Image/text-to-3D (organic/figurine shapes CadQuery can't sculpt)
+    meshy_api_key: str = ""
+
     # App
     app_host: str = "127.0.0.1"
     app_port: int = 8000

@@ -45,6 +45,23 @@ def _build_and_store(
     overrides: dict[str, Any] | None = None,
     color_overrides: dict[str, str] | None = None,
 ) -> dict[str, Any]:
+    if design.get("engine") == "meshy":
+        if color_overrides and color_overrides.get("body"):
+            design["bodies"] = [{"name": "body", "color": color_overrides["body"]}]
+            db.update_bodies(design["id"], design["bodies"])
+        built = builder.build_meshy_design(design)
+        b = built.result.bodies[0]
+        manifest = [{"index": b.index, "name": b.name, "color": b.color,
+                     "stl_url": f"/design/{design['id']}/body/{b.index}.stl"}]
+        return {
+            "report": built.result.report,
+            "readiness": built.readiness,
+            "has_step": False,
+            "has_repaired": built.readiness.repaired,
+            "bodies": manifest,
+            "params": {},
+        }
+
     params = builder.current_params(design, overrides)
     colors = builder.body_colors(design, color_overrides)
     built = builder.build_design(design, params, colors=colors)
@@ -99,8 +116,31 @@ def home(request: Request):
     return templates.TemplateResponse(
         request,
         "index.html",
-        {"designs": db.list_designs(), "has_key": bool(settings.anthropic_api_key)},
+        {"designs": db.list_designs(), "has_key": bool(settings.anthropic_api_key),
+         "has_meshy_key": bool(settings.meshy_api_key)},
     )
+
+
+@app.post("/figure/generate", response_class=HTMLResponse)
+def generate_figure(request: Request, prompt: str = Form(...)):
+    from .ai.meshy import MeshyError, generate_stl
+
+    try:
+        stl_bytes = generate_stl(prompt)
+    except MeshyError as exc:
+        return templates.TemplateResponse(
+            request,
+            "index.html",
+            {"designs": db.list_designs(), "has_key": bool(settings.anthropic_api_key),
+             "has_meshy_key": bool(settings.meshy_api_key), "error": str(exc)},
+            status_code=400,
+        )
+    design_id = db.save_design(
+        design_id=None, name=prompt[:60] or "figure", description=prompt, prompt=prompt,
+        engine="meshy", code="", parameters=[], bodies=[{"name": "body", "color": "#c8c8c8"}],
+    )
+    builder.finalize_meshy_design(design_id, stl_bytes, "#c8c8c8")
+    return HTMLResponse(status_code=303, headers={"Location": f"/design/{design_id}"})
 
 
 @app.post("/demo")
@@ -144,8 +184,8 @@ def generate(request: Request, prompt: str = Form(...), autofix: str = Form(None
         return templates.TemplateResponse(
             request,
             "index.html",
-            {"designs": db.list_designs(),
-             "has_key": bool(settings.anthropic_api_key), "error": str(exc)},
+            {"designs": db.list_designs(), "has_key": bool(settings.anthropic_api_key),
+             "has_meshy_key": bool(settings.meshy_api_key), "error": str(exc)},
             status_code=400,
         )
     design_id = db.save_design(
@@ -160,8 +200,8 @@ def generate(request: Request, prompt: str = Form(...), autofix: str = Form(None
         return templates.TemplateResponse(
             request,
             "index.html",
-            {"designs": db.list_designs(),
-             "has_key": bool(settings.anthropic_api_key), "error": f"Build failed: {exc}"},
+            {"designs": db.list_designs(), "has_key": bool(settings.anthropic_api_key),
+             "has_meshy_key": bool(settings.meshy_api_key), "error": f"Build failed: {exc}"},
             status_code=400,
         )
     return HTMLResponse(status_code=303, headers={"Location": f"/design/{design_id}"})
@@ -178,8 +218,8 @@ def design_page(request: Request, design_id: str):
         return templates.TemplateResponse(
             request,
             "index.html",
-            {"designs": db.list_designs(),
-             "has_key": bool(settings.anthropic_api_key),
+            {"designs": db.list_designs(), "has_key": bool(settings.anthropic_api_key),
+             "has_meshy_key": bool(settings.meshy_api_key),
              "error": f"'{design['name']}' can't be displayed — build failed: {exc}"},
             status_code=400,
         )
@@ -383,7 +423,7 @@ def sign_generate(request: Request, prompt: str = Form(...), autofix: str = Form
         return templates.TemplateResponse(
             request, "index.html",
             {"designs": db.list_designs(), "has_key": bool(settings.anthropic_api_key),
-             "error": str(exc)}, status_code=400,
+             "has_meshy_key": bool(settings.meshy_api_key), "error": str(exc)}, status_code=400,
         )
     design_id = db.save_design(
         design_id=None, name=gen.name, description=gen.description, prompt=f"[sign] {prompt}",
