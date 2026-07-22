@@ -117,6 +117,11 @@ def _to_mesh(obj: Any):
     path = tempfile.mktemp(suffix=".stl")
     try:
         cq.exporters.export(obj, path, exportType="STL")
+        if not os.path.exists(path):
+            raise CadExecutionError(
+                "CadQuery produced no STL output for this body — the geometry is "
+                "likely empty or invalid (e.g. self-intersecting)."
+            )
         return trimesh.load(path, force="mesh")
     finally:
         if os.path.exists(path):

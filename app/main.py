@@ -154,7 +154,16 @@ def generate(request: Request, prompt: str = Form(...), autofix: str = Form(None
         agent_log=log,
     )
     design = db.get_design(design_id)
-    _build_and_store(design)
+    try:
+        _build_and_store(design)
+    except (CadExecutionError, UnsafeCodeError) as exc:
+        return templates.TemplateResponse(
+            request,
+            "index.html",
+            {"designs": db.list_designs(),
+             "has_key": bool(settings.anthropic_api_key), "error": f"Build failed: {exc}"},
+            status_code=400,
+        )
     return HTMLResponse(status_code=303, headers={"Location": f"/design/{design_id}"})
 
 
