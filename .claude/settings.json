@@ -1,8 +1,0 @@
-{
-  "permissions": {
-    "allow": [
-      "Bash(python -m py_compile app/database.py app/ai/sign_generator.py app/main.py)",
-      "Bash(git commit -m ' *)"
-    ]
-  }
-}

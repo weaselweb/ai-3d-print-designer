@@ -26,3 +26,6 @@ generated/
 .DS_Store
 .idea/
 .vscode/
+
+# Local Claude Code settings (per-machine permissions, not project config)
+.claude/
