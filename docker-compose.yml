@@ -2,7 +2,7 @@ services:
   app:
     build: .
     ports:
-      - "8000:8000"
+      - "7500:8000"
     environment:
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
       MESHY_API_KEY: ${MESHY_API_KEY:-}
