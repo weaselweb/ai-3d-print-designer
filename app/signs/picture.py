@@ -43,11 +43,28 @@ def _decode(image_bytes: bytes, flag: int):
     return img
 
 
-def _trace_polygons(image_bytes: bytes, min_area_frac: float = 0.002) -> list[list[tuple[float, float]]]:
-    img = _decode(image_bytes, cv2.IMREAD_GRAYSCALE)
+def _flatten(img: np.ndarray) -> np.ndarray:
+    """Smooth away small-scale texture/speckle noise and soften gradients so
+    thresholding/clustering produces a few clean regions instead of a
+    speckled mess -- a lightweight 'flatten to cartoon' pass. Expects a BGR
+    (or single-channel) image."""
+    img = cv2.medianBlur(img, 5)
+    return cv2.bilateralFilter(img, d=9, sigmaColor=60, sigmaSpace=60)
+
+
+def _denoise_mask(mask: np.ndarray) -> np.ndarray:
+    kernel = np.ones((3, 3), np.uint8)
+    mask = cv2.morphologyEx(mask, cv2.MORPH_OPEN, kernel)  # drop leftover speckle
+    return cv2.morphologyEx(mask, cv2.MORPH_CLOSE, kernel)  # fill small gaps
+
+
+def _trace_polygons(image_bytes: bytes, min_area_frac: float = 0.003) -> list[list[tuple[float, float]]]:
+    color = _flatten(_decode(image_bytes, cv2.IMREAD_COLOR))
+    img = cv2.cvtColor(color, cv2.COLOR_BGR2GRAY)
     _, binary = cv2.threshold(img, 0, 255, cv2.THRESH_BINARY_INV + cv2.THRESH_OTSU)
     if np.count_nonzero(binary) > binary.size / 2:
         binary = cv2.bitwise_not(binary)
+    binary = _denoise_mask(binary)
     polygons = _contours_from_mask(binary, min_area_frac)
     if not polygons:
         raise PictureTraceError("No shape found in that image -- try one with a clearer subject.")
@@ -60,10 +77,10 @@ def _rgb_to_hex(rgb) -> str:
 
 
 def _trace_multicolor(
-    image_bytes: bytes, max_colors: int = 6, min_area_frac: float = 0.004
+    image_bytes: bytes, max_colors: int = 6, min_area_frac: float = 0.006
 ) -> list[tuple[list[list[tuple[float, float]]], str]]:
     cv2.setRNGSeed(42)  # kmeans init is otherwise randomized -- keep repeat traces of the same image stable
-    img = _decode(image_bytes, cv2.IMREAD_COLOR)
+    img = _flatten(_decode(image_bytes, cv2.IMREAD_COLOR))
     img_rgb = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
     h, w = img_rgb.shape[:2]
 
@@ -76,13 +93,12 @@ def _trace_multicolor(
     corners = [int(labels[0, 0]), int(labels[0, w - 1]), int(labels[h - 1, 0]), int(labels[h - 1, w - 1])]
     background_label = max(set(corners), key=corners.count)
 
-    kernel = np.ones((3, 3), np.uint8)
     results = []
     for cluster_id in range(k):
         if cluster_id == background_label:
             continue
         mask = np.where(labels == cluster_id, 255, 0).astype(np.uint8)
-        mask = cv2.morphologyEx(mask, cv2.MORPH_CLOSE, kernel)
+        mask = _denoise_mask(mask)
         polygons = _contours_from_mask(mask, min_area_frac)
         if polygons:
             results.append((polygons, _rgb_to_hex(centers[cluster_id])))
