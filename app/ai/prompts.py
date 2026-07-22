@@ -45,6 +45,8 @@ Code rules (STRICT):
 - Every parameter referenced in `code` must appear in `parameters` with a value.
 - Give each body a sensible default `color` (hex); the user can recolour later.
 - Keep it self-contained and deterministic.
+- If you use `.text(...)` to emboss/engrave text, follow it with `.mirror("YZ")`
+  — text built on a raw `Workplane("XY")` renders mirror-imaged otherwise.
 """
 
 PROFILE_NOTE = """\

@@ -69,7 +69,8 @@ def build_bodies(params: dict[str, Any]) -> list[Body]:
     text = str(p["text"]).strip()
     if text:
         txt = (cq.Workplane("XY").workplane(offset=p["plate_thickness"])
-               .text(text, p["text_size"], p["text_height"]))
+               .text(text, p["text_size"], p["text_height"])
+               .mirror("YZ"))
         mesh = _to_mesh(txt)
         if len(mesh.faces) > 0:
             bodies.append(Body("text", mesh, p["text_color"]))
