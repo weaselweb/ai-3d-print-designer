@@ -73,10 +73,17 @@
           </div>
           <div class="form-check form-check-inline mt-2">
             <input class="form-check-input" type="checkbox" name="holes" id="holes" {{ 'checked' if p.holes else '' }}>
-            <label class="form-check-label small" for="holes">Mounting holes</label>
+            <label class="form-check-label small" for="holes">Mounting / suction-cup holes</label>
           </div>
-          <div class="col-6 mt-1"><label class="small">Hole Ø (mm)</label>
-            <input class="form-control form-control-sm" name="hole_diameter" type="number" step="0.5" value="{{ p.hole_diameter }}"></div>
+          <div class="row g-2 mt-1">
+            <div class="col-6"><label class="small">Hole Ø (mm)</label>
+              <input class="form-control form-control-sm" name="hole_diameter" type="number" step="0.5" value="{{ p.hole_diameter }}"></div>
+            <div class="col-6"><label class="small">Position</label>
+              <select class="form-select form-select-sm" name="hole_position">
+                <option value="sides" {{ 'selected' if p.hole_position == 'sides' else '' }}>Sides</option>
+                <option value="top" {{ 'selected' if p.hole_position == 'top' else '' }}>Top</option>
+              </select></div>
+          </div>
         </div>
       </div>
 

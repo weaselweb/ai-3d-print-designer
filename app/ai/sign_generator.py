@@ -27,7 +27,8 @@ omit any you want left at their default):
   "text_size": <mm>, "text_height": <mm>,
   "flat": <true for a flush single-height inlay look, false (default) for raised/embossed text>,
   "border": <true/false>, "border_width": <mm>, "border_height": <mm>,
-  "holes": <true/false, mounting holes>, "hole_diameter": <mm>,
+  "holes": <true/false, mounting/suction-cup holes>, "hole_diameter": <mm>,
+  "hole_position": "<\"sides\" or \"top\">",
   "icon": "<one of: {_ICON_NAMES}, or \\"\\" for none>",
   "icon_size": <mm>, "icon_x": <mm from centre>, "icon_y": <mm from centre>,
   "base_color": "#RRGGBB", "text_color": "#RRGGBB", "border_color": "#RRGGBB",
@@ -42,6 +43,9 @@ Rules:
 - Size the plate to comfortably fit the text at a readable size.
 - Pick colours that suit the sign's tone (e.g. yellow/black for a warning
   sign, playful colours for a joke sign).
+- If the request implies hanging on glass/a window (e.g. mentions a suction
+  cup), set "holes": true and "hole_position": "top". For screw-mounting to
+  a wall, use "hole_position": "sides".
 """
 
 
@@ -90,4 +94,6 @@ def generate_sign_params(prompt: str) -> dict[str, Any]:
         if key in payload and payload[key] is not None:
             params[key] = payload[key]
     params["icon"] = icon
+    if params.get("hole_position") not in ("top", "sides"):
+        params["hole_position"] = "sides"
     return params

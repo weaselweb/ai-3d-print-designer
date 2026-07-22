@@ -400,6 +400,8 @@ def _parse_sign_form(form: Any, base: dict[str, Any]) -> dict[str, Any]:
     p["border"] = form.get("border") is not None  # unchecked checkbox is absent
     p["holes"] = form.get("holes") is not None
     p["flat"] = form.get("flat") is not None
+    if form.get("hole_position") in ("top", "sides"):
+        p["hole_position"] = str(form["hole_position"])
     icon = str(form.get("icon", "")).strip()
     p["icon"] = icon if icon in ICONS else ""
     return p

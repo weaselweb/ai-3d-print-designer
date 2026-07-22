@@ -34,6 +34,7 @@ DEFAULTS: dict[str, Any] = {
     "border_height": 1.6,
     "holes": False,
     "hole_diameter": 4.0,
+    "hole_position": "sides",  # "sides" or "top" -- where the mounting/suction-cup holes sit
     "icon": "",
     "icon_size": 20.0,
     "icon_height": 1.6,
@@ -64,9 +65,13 @@ def _base_plate(p: dict[str, Any]) -> cq.Workplane:
         plate = plate.edges("|Z").fillet(r)
     if p.get("holes"):
         d = p["hole_diameter"]
-        x = w / 2 - max(d, p["corner_radius"]) - 2
+        inset = max(d, p["corner_radius"]) + 2
+        if p.get("hole_position") == "top":
+            pts = [(-w / 4, h / 2 - inset), (w / 4, h / 2 - inset)]
+        else:  # "sides" -- also what a suction cup hook clips through for wall/window hanging
+            pts = [(-(w / 2 - inset), 0), (w / 2 - inset, 0)]
         holes = (
-            cq.Workplane("XY").pushPoints([(-x, 0), (x, 0)])
+            cq.Workplane("XY").pushPoints(pts)
             .circle(d / 2).extrude(t + 2).translate((0, 0, -1))
         )
         plate = plate.cut(holes)
