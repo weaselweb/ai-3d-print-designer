@@ -115,7 +115,7 @@ def _icon_shape(p: dict[str, Any], z0: float, height: float) -> cq.Workplane | N
     fn = ICONS.get(str(p.get("icon", "")).strip())
     if fn is None:
         return None
-    shape = fn(p["icon_size"], height)
+    shape = fn(p["icon_size"], height, p.get("text_mirror", True))
     return shape.translate((p.get("icon_x", 0.0), p.get("icon_y", 0.0), z0))
 
 
