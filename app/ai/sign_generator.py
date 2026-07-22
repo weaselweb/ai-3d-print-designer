@@ -1,80 +1,22 @@
-"""AI sign design: prompt -> structured parameters for the deterministic sign
-builder (app/signs/builder.py), instead of freehand CadQuery. Freehand
-per-generation text/icon code was unreliable (mirrored text, rough icon
-sketches); this engine is deterministic, tested, and already correctly
-oriented -- the AI just picks values for it.
+"""AI sign text: prompt -> a short phrase, nothing else. Layout, dimensions,
+borders, icon, colours, and placement are left to the user via the sign
+form -- letting the AI decide those too (an earlier version of this module
+did) made freehand layout/colour choices that were often wrong and cost far
+more tokens than generating text alone needs.
 """
 from __future__ import annotations
 
-import json
-import re
-from typing import Any
-
 from ..config import settings
-from ..signs.builder import DEFAULTS
-from ..signs.icons import ICONS
-
-_ICON_NAMES = ", ".join(sorted(ICONS))
-
-SYSTEM_PROMPT = f"""\
-You design multi-colour, 3D-printable signs. You always return a single JSON
-object and nothing else, matching this exact schema (all fields optional --
-omit any you want left at their default):
-
-{{
-  "text": "<sign text, keep it short>",
-  "plate_w": <mm>, "plate_h": <mm>, "plate_thickness": <mm>, "corner_radius": <mm>,
-  "text_size": <mm>, "text_height": <mm>,
-  "flat": <true for a flush single-height inlay look with a solid backing colour,
-           false (default) for raised/embossed text>,
-  "front_depth": <mm, flat mode only -- how deep the inlay layer is, e.g. 1.2>,
-  "border": <true/false>, "border_width": <mm>, "border_height": <mm>,
-  "holes": <true/false, mounting/suction-cup holes>, "hole_diameter": <mm>,
-  "hole_position": "<\"sides\" or \"top\">",
-  "icon": "<one of: {_ICON_NAMES}, or \\"\\" for none>",
-  "icon_size": <mm>, "icon_x": <mm from centre>, "icon_y": <mm from centre>,
-  "base_color": "#RRGGBB", "text_color": "#RRGGBB", "border_color": "#RRGGBB",
-  "icon_color": "#RRGGBB", "back_color": "<#RRGGBB, flat mode only -- the solid
-  colour seen from the back, so the front pattern doesn't show through>"
-}}
-
-Rules:
-- "icon" MUST be one of the exact names listed above, or empty. Never invent a
-  new icon name -- pick the closest match, or leave it empty.
-- Position the icon (icon_x/icon_y) so it doesn't overlap the text -- e.g. an
-  icon above the text (positive icon_y) with text nearer the plate centre.
-- Size the plate to comfortably fit the text at a readable size.
-- Pick colours that suit the sign's tone (e.g. yellow/black for a warning
-  sign, playful colours for a joke sign).
-- If the request implies hanging on glass/a window (e.g. mentions a suction
-  cup), set "holes": true and "hole_position": "top". For screw-mounting to
-  a wall, use "hole_position": "sides".
-"""
 
 
 class SignGenerationError(RuntimeError):
     pass
 
 
-def _extract_json(text: str) -> dict[str, Any]:
-    text = text.strip()
-    fence = re.search(r"```(?:json)?\s*(\{.*\})\s*```", text, re.DOTALL)
-    if fence:
-        text = fence.group(1)
-    else:
-        start, end = text.find("{"), text.rfind("}")
-        if start != -1 and end != -1:
-            text = text[start : end + 1]
-    try:
-        return json.loads(text)
-    except json.JSONDecodeError as exc:
-        raise SignGenerationError(f"Model did not return valid JSON: {exc}") from exc
-
-
-def generate_sign_params(prompt: str) -> dict[str, Any]:
+def generate_phrase(theme: str) -> str:
     if not settings.anthropic_api_key:
         raise SignGenerationError(
-            "ANTHROPIC_API_KEY is not set. Add it to .env to use AI sign generation "
+            "ANTHROPIC_API_KEY is not set. Add it to .env to use AI sign text "
             "(the form builder on the home page works without a key)."
         )
     import anthropic
@@ -82,40 +24,10 @@ def generate_sign_params(prompt: str) -> dict[str, Any]:
     client = anthropic.Anthropic(api_key=settings.anthropic_api_key)
     resp = client.messages.create(
         model=settings.anthropic_model,
-        max_tokens=1024,
-        system=SYSTEM_PROMPT,
-        messages=[{"role": "user", "content": prompt}],
-    )
-    text = "".join(block.text for block in resp.content if block.type == "text")
-    payload = _extract_json(text)
-
-    icon = str(payload.get("icon", "")).strip()
-    if icon and icon not in ICONS:
-        icon = ""
-    params = dict(DEFAULTS)
-    for key in DEFAULTS:
-        if key in payload and payload[key] is not None:
-            params[key] = payload[key]
-    params["icon"] = icon
-    if params.get("hole_position") not in ("top", "sides"):
-        params["hole_position"] = "sides"
-    return params
-
-
-def generate_phrase(theme: str) -> str:
-    """Cheap reroll: a new short phrase in the same vein, keeping the rest of
-    the sign design untouched -- tiny prompt, tiny output, not the full schema."""
-    if not settings.anthropic_api_key:
-        raise SignGenerationError("ANTHROPIC_API_KEY is not set. Add it to .env to reroll text.")
-    import anthropic
-
-    client = anthropic.Anthropic(api_key=settings.anthropic_api_key)
-    resp = client.messages.create(
-        model=settings.anthropic_model,
         max_tokens=60,
         system=(
-            "Write ONE new short, funny sign phrase in the same theme/style as the "
-            "user's message. Return ONLY the phrase text -- no quotes, no preamble, "
+            "Write ONE short, funny sign phrase in the theme/style of the user's "
+            "message. Return ONLY the phrase text -- no quotes, no preamble, "
             "nothing else."
         ),
         messages=[{"role": "user", "content": theme}],

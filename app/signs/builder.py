@@ -19,6 +19,7 @@ import cadquery as cq
 import trimesh
 
 from .icons import ICONS
+from .picture import build_picture_bodies, build_picture_shape
 from .threemf import Body
 
 DEFAULTS: dict[str, Any] = {
@@ -30,6 +31,22 @@ DEFAULTS: dict[str, Any] = {
     "text_size": 16.0,
     "text_height": 1.6,
     "text_mirror": True,  # flip if generated text reads backwards -- see the sign page
+    "text_x": 0.0,
+    "text_y": 0.0,
+    "text_box": False,
+    "text_box_w": 60.0,
+    "text_box_h": 20.0,
+    "text_box_border_width": 1.5,
+    "text_box_height": 1.6,
+    "text_box_color": "#e0e0e0",
+    "picture_path": "",
+    "picture_size": 30.0,
+    "picture_height": 1.6,
+    "picture_x": 0.0,
+    "picture_y": -12.0,
+    "picture_color": "#f4d35e",
+    "picture_multicolor": False,
+    "picture_max_colors": 6,
     "flat": False,
     "front_depth": 1.2,  # flat mode only: how deep the inlay layer is
     "back_color": "#1b3a5b",  # flat mode only: solid colour behind the inlay
@@ -97,7 +114,41 @@ def _text_shape(p: dict[str, Any], z0: float, height: float) -> cq.Workplane | N
     shape = cq.Workplane("XY").text(text, p["text_size"], height)
     if p.get("text_mirror", True):
         shape = shape.mirror("YZ")
-    return shape.translate((0, 0, z0))
+    return shape.translate((p.get("text_x", 0.0), p.get("text_y", 0.0), z0))
+
+
+def _text_box_shape(p: dict[str, Any], z0: float, height: float) -> cq.Workplane | None:
+    if not p.get("text_box"):
+        return None
+    w, h = p["text_box_w"], p["text_box_h"]
+    bw = p["text_box_border_width"]
+    if w - 2 * bw <= 1 or h - 2 * bw <= 1:
+        return None
+    shape = cq.Workplane("XY").rect(w, h).rect(w - 2 * bw, h - 2 * bw).extrude(height)
+    return shape.translate((p.get("text_x", 0.0), p.get("text_y", 0.0), z0))
+
+
+def _picture_content(p: dict[str, Any], z0: float, height: float) -> list[tuple[str, cq.Workplane, str]]:
+    """One or more (name, shape, color) entries for the uploaded picture --
+    multiple if picture_multicolor traced out several colour regions."""
+    path = p.get("picture_path") or ""
+    if not path or not os.path.exists(path):
+        return []
+    with open(path, "rb") as f:
+        image_bytes = f.read()
+    offset = (p.get("picture_x", 0.0), p.get("picture_y", 0.0), z0)
+
+    if p.get("picture_multicolor"):
+        regions = build_picture_bodies(
+            image_bytes, p["picture_size"], height, max_colors=int(p.get("picture_max_colors", 6))
+        )
+        return [
+            (f"picture_{i}", shape.translate(offset), color)
+            for i, (shape, color) in enumerate(regions)
+        ]
+
+    shape = build_picture_shape(image_bytes, p["picture_size"], height).translate(offset)
+    return [("picture", shape, p["picture_color"])]
 
 
 def _border_shape(p: dict[str, Any], z0: float, height: float) -> cq.Workplane | None:
@@ -124,38 +175,35 @@ def build_bodies(params: dict[str, Any]) -> list[Body]:
     t = p["plate_thickness"]
     flat = bool(p.get("flat"))
 
-    if flat:
-        front_depth = min(p["front_depth"], max(t - 0.8, 0.2))
-        back_h = t - front_depth
-        text_shape = _text_shape(p, back_h, front_depth)
-        border_shape = _border_shape(p, back_h, front_depth)
-        icon_shape = _icon_shape(p, back_h, front_depth)
+    front_depth = min(p["front_depth"], max(t - 0.8, 0.2)) if flat else None
+    z0 = (t - front_depth) if flat else t
 
-        back = _plate_slab(p, 0.0, back_h)
-        front_bg = _plate_slab(p, back_h, t)
-        for shape in (text_shape, border_shape, icon_shape):
+    content = [
+        ("text", _text_shape(p, z0, front_depth if flat else p["text_height"]), p["text_color"]),
+        ("text_box", _text_box_shape(p, z0, front_depth if flat else p["text_box_height"]),
+         p["text_box_color"]),
+        ("border", _border_shape(p, z0, front_depth if flat else p["border_height"]), p["border_color"]),
+        ("icon", _icon_shape(p, z0, front_depth if flat else p["icon_height"]), p["icon_color"]),
+    ] + _picture_content(p, z0, front_depth if flat else p["picture_height"])
+
+    if flat:
+        back = _plate_slab(p, 0.0, t - front_depth)
+        front_bg = _plate_slab(p, t - front_depth, t)
+        for _, shape, _color in content:
             if shape is not None:
                 front_bg = front_bg.cut(shape)
-
         bodies: list[Body] = [
             Body("back", _to_mesh(back), p["back_color"]),
             Body("base", _to_mesh(front_bg), p["base_color"]),
         ]
     else:
-        text_shape = _text_shape(p, t, p["text_height"])
-        border_shape = _border_shape(p, t, p["border_height"])
-        icon_shape = _icon_shape(p, t, p["icon_height"])
         bodies = [Body("base", _to_mesh(_base_plate(p)), p["base_color"])]
 
-    if text_shape is not None:
-        mesh = _to_mesh(text_shape)
+    for name, shape, color in content:
+        if shape is None:
+            continue
+        mesh = _to_mesh(shape)
         if len(mesh.faces) > 0:
-            bodies.append(Body("text", mesh, p["text_color"]))
-    if border_shape is not None:
-        bodies.append(Body("border", _to_mesh(border_shape), p["border_color"]))
-    if icon_shape is not None:
-        mesh = _to_mesh(icon_shape)
-        if len(mesh.faces) > 0:
-            bodies.append(Body("icon", mesh, p["icon_color"]))
+            bodies.append(Body(name, mesh, color))
 
     return bodies

@@ -379,8 +379,12 @@ async def capture_build(request: Request, capture_id: str):
 # --------------------------------------------------------------------------- #
 _SIGN_NUM = ("plate_w", "plate_h", "plate_thickness", "corner_radius", "text_size",
              "text_height", "border_width", "border_height", "hole_diameter",
-             "icon_size", "icon_x", "icon_y", "front_depth")
-_SIGN_COLORS = ("base_color", "text_color", "border_color", "icon_color", "back_color")
+             "icon_size", "icon_x", "icon_y", "front_depth",
+             "text_x", "text_y", "text_box_w", "text_box_h", "text_box_border_width",
+             "text_box_height", "picture_size", "picture_height", "picture_x", "picture_y",
+             "picture_max_colors")
+_SIGN_COLORS = ("base_color", "text_color", "border_color", "icon_color", "back_color",
+                "text_box_color", "picture_color")
 
 
 def _parse_sign_form(form: Any, base: dict[str, Any]) -> dict[str, Any]:
@@ -401,11 +405,32 @@ def _parse_sign_form(form: Any, base: dict[str, Any]) -> dict[str, Any]:
     p["holes"] = form.get("holes") is not None
     p["flat"] = form.get("flat") is not None
     p["text_mirror"] = form.get("text_mirror") is not None
+    p["text_box"] = form.get("text_box") is not None
+    p["picture_multicolor"] = form.get("picture_multicolor") is not None
     if form.get("hole_position") in ("top", "sides"):
         p["hole_position"] = str(form["hole_position"])
     icon = str(form.get("icon", "")).strip()
     p["icon"] = icon if icon in ICONS else ""
     return p
+
+
+async def _apply_picture_upload(form: Any, sign_id: str, params: dict[str, Any]) -> None:
+    """Save a newly-uploaded picture (if any) and point params at it, or
+    clear it if "remove_picture" was checked."""
+    if form.get("remove_picture") is not None:
+        params["picture_path"] = ""
+        return
+    photo = form.get("picture")
+    filename = getattr(photo, "filename", "") or ""
+    if not filename:
+        return
+    ext = _IMAGE_EXTS.get(getattr(photo, "content_type", "") or "")
+    if not ext:
+        raise ValueError("Picture must be a PNG, JPEG, or WebP image.")
+    dest = settings.uploads_dir / f"sign_{sign_id}_picture{ext}"
+    dest.parent.mkdir(parents=True, exist_ok=True)
+    dest.write_bytes(await photo.read())
+    params["picture_path"] = str(dest)
 
 
 @app.post("/signs/new")
@@ -418,18 +443,21 @@ def sign_new():
 
 @app.post("/signs/generate", response_class=HTMLResponse)
 def sign_generate(request: Request, prompt: str = Form(...)):
-    """AI sign: describe it -> structured params -> the deterministic sign engine."""
-    from .ai.sign_generator import SignGenerationError, generate_sign_params
+    """AI supplies just the phrase; layout/colours/border/icon stay at their
+    manual defaults for you to adjust on the sign page."""
+    from .ai.sign_generator import SignGenerationError, generate_phrase
 
     try:
-        params = generate_sign_params(prompt)
+        text = generate_phrase(prompt)
     except SignGenerationError as exc:
         return templates.TemplateResponse(
             request, "index.html",
             {"designs": db.list_designs(), "has_key": bool(settings.anthropic_api_key),
              "has_meshy_key": bool(settings.meshy_api_key), "error": str(exc)}, status_code=400,
         )
-    sign_id = db.save_sign(None, params["text"], params, prompt=prompt)
+    params = dict(SIGN_DEFAULTS)
+    params["text"] = text
+    sign_id = db.save_sign(None, text, params, prompt=prompt)
     sign_service.build_sign(sign_id, params)
     return HTMLResponse(status_code=303, headers={"Location": f"/signs/{sign_id}"})
 
@@ -477,6 +505,10 @@ async def sign_rebuild(request: Request, sign_id: str):
         raise HTTPException(404, "Sign not found")
     form = await request.form()
     params = _parse_sign_form(form, sign["params"])
+    try:
+        await _apply_picture_upload(form, sign_id, params)
+    except ValueError as exc:
+        return HTMLResponse(f'<div class="alert alert-danger mb-0">{exc}</div>', status_code=400)
     db.save_sign(sign_id, params["text"], params)
     try:
         manifest = sign_service.build_sign(sign_id, params)

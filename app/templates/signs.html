@@ -16,7 +16,7 @@
   <div class="col-lg-4">
     <form id="reroll-text-form" method="post" action="/signs/{{ sign.id }}/reroll-text"></form>
     <form hx-post="/signs/{{ sign.id }}/rebuild" hx-target="#sign-preview" hx-swap="innerHTML"
-          hx-indicator="#sign-spin">
+          hx-indicator="#sign-spin" hx-encoding="multipart/form-data">
       {% set p = sign.params %}
       <div class="card bg-body-tertiary mb-3">
         <div class="card-body">
@@ -61,6 +61,30 @@
               <input class="form-control form-control-sm" name="front_depth" type="number" step="0.2" value="{{ p.front_depth }}"></div>
           </div>
           {% endif %}
+          <div class="row g-2 mt-2">
+            <div class="col-6"><label class="small">Text X offset (mm)</label>
+              <input class="form-control form-control-sm" name="text_x" type="number" step="1" value="{{ p.text_x }}"></div>
+            <div class="col-6"><label class="small">Text Y offset (mm)</label>
+              <input class="form-control form-control-sm" name="text_y" type="number" step="1" value="{{ p.text_y }}"></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card bg-body-tertiary mb-3">
+        <div class="card-body">
+          <div class="form-check mb-2">
+            <input class="form-check-input" type="checkbox" name="text_box" id="text_box" {{ 'checked' if p.text_box else '' }}>
+            <label class="form-check-label h6 mb-0" for="text_box">Text box border</label>
+          </div>
+          <p class="small text-secondary mb-2">Frames the text at its X/Y offset above.</p>
+          <div class="row g-2">
+            <div class="col-4"><label class="small">Box width (mm)</label>
+              <input class="form-control form-control-sm" name="text_box_w" type="number" step="1" value="{{ p.text_box_w }}"></div>
+            <div class="col-4"><label class="small">Box height (mm)</label>
+              <input class="form-control form-control-sm" name="text_box_h" type="number" step="1" value="{{ p.text_box_h }}"></div>
+            <div class="col-4"><label class="small">Border (mm)</label>
+              <input class="form-control form-control-sm" name="text_box_border_width" type="number" step="0.5" value="{{ p.text_box_border_width }}"></div>
+          </div>
         </div>
       </div>
 
@@ -81,6 +105,44 @@
             <div class="col-4"><label class="small">Y offset (mm)</label>
               <input class="form-control form-control-sm" name="icon_y" type="number" step="1" value="{{ p.icon_y }}"></div>
           </div>
+        </div>
+      </div>
+
+      <div class="card bg-body-tertiary mb-3">
+        <div class="card-body">
+          <h2 class="h6">Picture</h2>
+          <p class="small text-secondary mb-2">
+            Traced from a simple, high-contrast cartoon/clip-art style image — not photos.
+          </p>
+          {% if p.picture_path %}
+          <div class="form-check mb-2">
+            <input class="form-check-input" type="checkbox" name="remove_picture" id="remove_picture">
+            <label class="form-check-label small" for="remove_picture">Remove current picture</label>
+          </div>
+          {% endif %}
+          <input class="form-control form-control-sm mb-2" type="file" name="picture"
+                 accept="image/png,image/jpeg,image/webp">
+          <div class="form-check mb-2">
+            <input class="form-check-input" type="checkbox" name="picture_multicolor" id="picture_multicolor"
+                   {{ 'checked' if p.picture_multicolor else '' }}>
+            <label class="form-check-label small" for="picture_multicolor">
+              Multi-colour <span class="text-secondary">(trace each colour region separately, instead of one silhouette)</span>
+            </label>
+          </div>
+          <div class="row g-2">
+            <div class="col-4"><label class="small">Size (mm)</label>
+              <input class="form-control form-control-sm" name="picture_size" type="number" step="1" value="{{ p.picture_size }}"></div>
+            <div class="col-4"><label class="small">X offset (mm)</label>
+              <input class="form-control form-control-sm" name="picture_x" type="number" step="1" value="{{ p.picture_x }}"></div>
+            <div class="col-4"><label class="small">Y offset (mm)</label>
+              <input class="form-control form-control-sm" name="picture_y" type="number" step="1" value="{{ p.picture_y }}"></div>
+          </div>
+          {% if p.picture_multicolor %}
+          <div class="row g-2 mt-1">
+            <div class="col-6"><label class="small">Max colours</label>
+              <input class="form-control form-control-sm" name="picture_max_colors" type="number" step="1" min="2" max="8" value="{{ p.picture_max_colors }}"></div>
+          </div>
+          {% endif %}
         </div>
       </div>
 
@@ -141,6 +203,14 @@
               <input type="color" class="form-control form-control-color form-control-sm" name="border_color" value="{{ p.border_color }}"></div>
             <div><label class="small d-block">Icon</label>
               <input type="color" class="form-control form-control-color form-control-sm" name="icon_color" value="{{ p.icon_color }}"></div>
+            {% if p.text_box %}
+            <div><label class="small d-block">Text box</label>
+              <input type="color" class="form-control form-control-color form-control-sm" name="text_box_color" value="{{ p.text_box_color }}"></div>
+            {% endif %}
+            {% if p.picture_path and not p.picture_multicolor %}
+            <div><label class="small d-block">Picture</label>
+              <input type="color" class="form-control form-control-color form-control-sm" name="picture_color" value="{{ p.picture_color }}"></div>
+            {% endif %}
             {% if p.flat %}
             <div><label class="small d-block">Back</label>
               <input type="color" class="form-control form-control-color form-control-sm" name="back_color" value="{{ p.back_color }}"></div>
