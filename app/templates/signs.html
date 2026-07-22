@@ -39,9 +39,28 @@
           <div class="form-check mt-2">
             <input class="form-check-input" type="checkbox" name="flat" id="flat" {{ 'checked' if p.flat else '' }}>
             <label class="form-check-label small" for="flat">
-              Flat inlay <span class="text-secondary">(flush single-height, instead of raised/embossed)</span>
+              Flat inlay <span class="text-secondary">(flush single-height, with a solid backing colour, instead of raised/embossed)</span>
             </label>
           </div>
+          {% if p.flat %}
+          <div class="alert alert-info py-2 small mt-2 mb-0">
+            For a smooth front finish, rotate this 180° around X in your slicer
+            before printing (front face-down on the bed) — then flip the printed
+            part back over top-to-bottom to display it.
+          </div>
+          {% endif %}
+          <div class="form-check mt-2">
+            <input class="form-check-input" type="checkbox" name="text_mirror" id="text_mirror" {{ 'checked' if p.text_mirror else '' }}>
+            <label class="form-check-label small" for="text_mirror">
+              Mirror text <span class="text-secondary">(toggle this if generated text reads backwards)</span>
+            </label>
+          </div>
+          {% if p.flat %}
+          <div class="row g-2 mt-2">
+            <div class="col-6"><label class="small">Inlay depth (mm)</label>
+              <input class="form-control form-control-sm" name="front_depth" type="number" step="0.2" value="{{ p.front_depth }}"></div>
+          </div>
+          {% endif %}
         </div>
       </div>
 
@@ -122,6 +141,10 @@
               <input type="color" class="form-control form-control-color form-control-sm" name="border_color" value="{{ p.border_color }}"></div>
             <div><label class="small d-block">Icon</label>
               <input type="color" class="form-control form-control-color form-control-sm" name="icon_color" value="{{ p.icon_color }}"></div>
+            {% if p.flat %}
+            <div><label class="small d-block">Back</label>
+              <input type="color" class="form-control form-control-color form-control-sm" name="back_color" value="{{ p.back_color }}"></div>
+            {% endif %}
           </div>
         </div>
       </div>

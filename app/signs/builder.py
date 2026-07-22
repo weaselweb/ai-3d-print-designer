@@ -1,12 +1,13 @@
 """Build a multi-colour sign as separate coloured bodies (base / text / border /
-icon). Each element is its own solid so it exports as a separate 3MF object
-that maps to one ACE Pro filament slot.
+icon / back). Each element is its own solid so it exports as a separate 3MF
+object that maps to one ACE Pro filament slot.
 
 Two styles:
 - raised (default): text/border/icon sit extruded ON TOP of a solid plate.
-- flat: the plate has the text/border/icon shapes cut out of it, and those
-  same shapes fill the gaps at full plate thickness -- a flush, single-height
-  inlay look instead of embossed lettering.
+- flat: text/border/icon are cut into a thin "front" layer and filled flush
+  with it, for a flush inlay look instead of embossed lettering. A separate,
+  uncut "back" slab sits behind that front layer in its own colour, so the
+  inlay pattern doesn't show through to the other side.
 """
 from __future__ import annotations
 
@@ -28,7 +29,10 @@ DEFAULTS: dict[str, Any] = {
     "corner_radius": 4.0,
     "text_size": 16.0,
     "text_height": 1.6,
+    "text_mirror": True,  # flip if generated text reads backwards -- see the sign page
     "flat": False,
+    "front_depth": 1.2,  # flat mode only: how deep the inlay layer is
+    "back_color": "#1b3a5b",  # flat mode only: solid colour behind the inlay
     "border": True,
     "border_width": 3.0,
     "border_height": 1.6,
@@ -57,9 +61,13 @@ def _to_mesh(obj: cq.Workplane) -> trimesh.Trimesh:
             os.remove(path)
 
 
-def _base_plate(p: dict[str, Any]) -> cq.Workplane:
-    w, h, t = p["plate_w"], p["plate_h"], p["plate_thickness"]
-    plate = cq.Workplane("XY").rect(w, h).extrude(t)  # bottom at z=0
+def _plate_slab(p: dict[str, Any], z0: float, z1: float) -> cq.Workplane:
+    """A filleted plate-shaped slab spanning z0..z1, with mounting holes if
+    enabled (over-extruded past both ends so it cuts cleanly through thin
+    slabs too)."""
+    w, h = p["plate_w"], p["plate_h"]
+    height = z1 - z0
+    plate = cq.Workplane("XY").rect(w, h).extrude(height).translate((0, 0, z0))
     r = min(p["corner_radius"], min(w, h) / 2 - 0.1)
     if r > 0:
         plate = plate.edges("|Z").fillet(r)
@@ -72,60 +80,72 @@ def _base_plate(p: dict[str, Any]) -> cq.Workplane:
             pts = [(-(w / 2 - inset), 0), (w / 2 - inset, 0)]
         holes = (
             cq.Workplane("XY").pushPoints(pts)
-            .circle(d / 2).extrude(t + 2).translate((0, 0, -1))
+            .circle(d / 2).extrude(height + 2).translate((0, 0, z0 - 1))
         )
         plate = plate.cut(holes)
     return plate
 
 
-def _text_shape(p: dict[str, Any]) -> cq.Workplane | None:
+def _base_plate(p: dict[str, Any]) -> cq.Workplane:
+    return _plate_slab(p, 0.0, p["plate_thickness"])
+
+
+def _text_shape(p: dict[str, Any], z0: float, height: float) -> cq.Workplane | None:
     text = str(p["text"]).strip()
     if not text:
         return None
-    t = p["plate_thickness"]
-    flat = bool(p.get("flat"))
-    shape = cq.Workplane("XY").text(text, p["text_size"], t if flat else p["text_height"]).mirror("YZ")
-    return shape if flat else shape.translate((0, 0, t))
+    shape = cq.Workplane("XY").text(text, p["text_size"], height)
+    if p.get("text_mirror", True):
+        shape = shape.mirror("YZ")
+    return shape.translate((0, 0, z0))
 
 
-def _border_shape(p: dict[str, Any]) -> cq.Workplane | None:
+def _border_shape(p: dict[str, Any], z0: float, height: float) -> cq.Workplane | None:
     if not p.get("border"):
         return None
-    w, h, t = p["plate_w"], p["plate_h"], p["plate_thickness"]
+    w, h = p["plate_w"], p["plate_h"]
     bw = p["border_width"]
     if w - 2 * bw <= 1 or h - 2 * bw <= 1:
         return None
-    flat = bool(p.get("flat"))
-    shape = cq.Workplane("XY").rect(w, h).rect(w - 2 * bw, h - 2 * bw).extrude(t if flat else p["border_height"])
-    return shape if flat else shape.translate((0, 0, t))
+    shape = cq.Workplane("XY").rect(w, h).rect(w - 2 * bw, h - 2 * bw).extrude(height)
+    return shape.translate((0, 0, z0))
 
 
-def _icon_shape(p: dict[str, Any]) -> cq.Workplane | None:
+def _icon_shape(p: dict[str, Any], z0: float, height: float) -> cq.Workplane | None:
     fn = ICONS.get(str(p.get("icon", "")).strip())
     if fn is None:
         return None
-    t = p["plate_thickness"]
-    flat = bool(p.get("flat"))
-    shape = fn(p["icon_size"], t if flat else p["icon_height"])
-    shape = shape.translate((p.get("icon_x", 0.0), p.get("icon_y", 0.0), 0 if flat else t))
-    return shape
+    shape = fn(p["icon_size"], height)
+    return shape.translate((p.get("icon_x", 0.0), p.get("icon_y", 0.0), z0))
 
 
 def build_bodies(params: dict[str, Any]) -> list[Body]:
     p = {**DEFAULTS, **{k: v for k, v in params.items() if v is not None}}
+    t = p["plate_thickness"]
     flat = bool(p.get("flat"))
 
-    plate = _base_plate(p)
-    text_shape = _text_shape(p)
-    border_shape = _border_shape(p)
-    icon_shape = _icon_shape(p)
-
     if flat:
+        front_depth = min(p["front_depth"], max(t - 0.8, 0.2))
+        back_h = t - front_depth
+        text_shape = _text_shape(p, back_h, front_depth)
+        border_shape = _border_shape(p, back_h, front_depth)
+        icon_shape = _icon_shape(p, back_h, front_depth)
+
+        back = _plate_slab(p, 0.0, back_h)
+        front_bg = _plate_slab(p, back_h, t)
         for shape in (text_shape, border_shape, icon_shape):
             if shape is not None:
-                plate = plate.cut(shape)
+                front_bg = front_bg.cut(shape)
 
-    bodies: list[Body] = [Body("base", _to_mesh(plate), p["base_color"])]
+        bodies: list[Body] = [
+            Body("back", _to_mesh(back), p["back_color"]),
+            Body("base", _to_mesh(front_bg), p["base_color"]),
+        ]
+    else:
+        text_shape = _text_shape(p, t, p["text_height"])
+        border_shape = _border_shape(p, t, p["border_height"])
+        icon_shape = _icon_shape(p, t, p["icon_height"])
+        bodies = [Body("base", _to_mesh(_base_plate(p)), p["base_color"])]
 
     if text_shape is not None:
         mesh = _to_mesh(text_shape)

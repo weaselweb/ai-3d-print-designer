@@ -379,8 +379,8 @@ async def capture_build(request: Request, capture_id: str):
 # --------------------------------------------------------------------------- #
 _SIGN_NUM = ("plate_w", "plate_h", "plate_thickness", "corner_radius", "text_size",
              "text_height", "border_width", "border_height", "hole_diameter",
-             "icon_size", "icon_x", "icon_y")
-_SIGN_COLORS = ("base_color", "text_color", "border_color", "icon_color")
+             "icon_size", "icon_x", "icon_y", "front_depth")
+_SIGN_COLORS = ("base_color", "text_color", "border_color", "icon_color", "back_color")
 
 
 def _parse_sign_form(form: Any, base: dict[str, Any]) -> dict[str, Any]:
@@ -400,6 +400,7 @@ def _parse_sign_form(form: Any, base: dict[str, Any]) -> dict[str, Any]:
     p["border"] = form.get("border") is not None  # unchecked checkbox is absent
     p["holes"] = form.get("holes") is not None
     p["flat"] = form.get("flat") is not None
+    p["text_mirror"] = form.get("text_mirror") is not None
     if form.get("hole_position") in ("top", "sides"):
         p["hole_position"] = str(form["hole_position"])
     icon = str(form.get("icon", "")).strip()

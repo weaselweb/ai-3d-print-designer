@@ -25,14 +25,17 @@ omit any you want left at their default):
   "text": "<sign text, keep it short>",
   "plate_w": <mm>, "plate_h": <mm>, "plate_thickness": <mm>, "corner_radius": <mm>,
   "text_size": <mm>, "text_height": <mm>,
-  "flat": <true for a flush single-height inlay look, false (default) for raised/embossed text>,
+  "flat": <true for a flush single-height inlay look with a solid backing colour,
+           false (default) for raised/embossed text>,
+  "front_depth": <mm, flat mode only -- how deep the inlay layer is, e.g. 1.2>,
   "border": <true/false>, "border_width": <mm>, "border_height": <mm>,
   "holes": <true/false, mounting/suction-cup holes>, "hole_diameter": <mm>,
   "hole_position": "<\"sides\" or \"top\">",
   "icon": "<one of: {_ICON_NAMES}, or \\"\\" for none>",
   "icon_size": <mm>, "icon_x": <mm from centre>, "icon_y": <mm from centre>,
   "base_color": "#RRGGBB", "text_color": "#RRGGBB", "border_color": "#RRGGBB",
-  "icon_color": "#RRGGBB"
+  "icon_color": "#RRGGBB", "back_color": "<#RRGGBB, flat mode only -- the solid
+  colour seen from the back, so the front pattern doesn't show through>"
 }}
 
 Rules:
