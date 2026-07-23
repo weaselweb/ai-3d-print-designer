@@ -443,21 +443,22 @@ def sign_new():
 
 @app.post("/signs/generate", response_class=HTMLResponse)
 def sign_generate(request: Request, prompt: str = Form(...)):
-    """AI supplies just the phrase; layout/colours/border/icon stay at their
-    manual defaults for you to adjust on the sign page."""
-    from .ai.sign_generator import SignGenerationError, generate_phrase
+    """AI designs the whole sign -- text, size, colours, icon, border/holes/flat --
+    from a single description. Every field is validated/clamped in
+    generate_sign_design before it touches the builder."""
+    from .signs.icons import ICONS
+    from .ai.sign_generator import SignGenerationError, generate_sign_design
 
     try:
-        text = generate_phrase(prompt)
+        design = generate_sign_design(prompt, sorted(ICONS))
     except SignGenerationError as exc:
         return templates.TemplateResponse(
             request, "index.html",
             {"designs": db.list_designs(), "has_key": bool(settings.anthropic_api_key),
              "has_meshy_key": bool(settings.meshy_api_key), "error": str(exc)}, status_code=400,
         )
-    params = dict(SIGN_DEFAULTS)
-    params["text"] = text
-    sign_id = db.save_sign(None, text, params, prompt=prompt)
+    params = {**SIGN_DEFAULTS, **design}
+    sign_id = db.save_sign(None, params["text"], params, prompt=prompt)
     sign_service.build_sign(sign_id, params)
     return HTMLResponse(status_code=303, headers={"Location": f"/signs/{sign_id}"})
 
@@ -479,6 +480,26 @@ def sign_reroll_text(sign_id: str):
     params = dict(sign["params"])
     params["text"] = text
     db.save_sign(sign_id, text, params)
+    return HTMLResponse(status_code=303, headers={"Location": f"/signs/{sign_id}"})
+
+
+@app.post("/signs/{sign_id}/redesign", response_class=HTMLResponse)
+def sign_redesign(sign_id: str):
+    """Full AI redesign, keeping the current phrase's theme -- replaces size,
+    colours, icon, and border/holes/flat choices, not just the text."""
+    from .signs.icons import ICONS
+    from .ai.sign_generator import SignGenerationError, generate_sign_design
+
+    sign = db.get_sign(sign_id)
+    if not sign:
+        raise HTTPException(404, "Sign not found")
+    theme = sign.get("prompt") or sign["text"]
+    try:
+        design = generate_sign_design(theme, sorted(ICONS))
+    except SignGenerationError as exc:
+        return HTMLResponse(f'<div class="alert alert-danger mb-0">{exc}</div>', status_code=400)
+    params = {**sign["params"], **design}
+    db.save_sign(sign_id, params["text"], params)
     return HTMLResponse(status_code=303, headers={"Location": f"/signs/{sign_id}"})
 
 

@@ -15,6 +15,7 @@
 <div class="row g-4">
   <div class="col-lg-4">
     <form id="reroll-text-form" method="post" action="/signs/{{ sign.id }}/reroll-text"></form>
+    <form id="redesign-form" method="post" action="/signs/{{ sign.id }}/redesign"></form>
     <form hx-post="/signs/{{ sign.id }}/rebuild" hx-target="#sign-preview" hx-swap="innerHTML"
           hx-indicator="#sign-spin" hx-encoding="multipart/form-data">
       {% set p = sign.params %}
@@ -28,6 +29,12 @@
             🎲 New phrase, keep design
           </button>
           <span class="text-secondary small">— cheap: just asks for new text, not a full redesign</span>
+          <div>
+            <button type="submit" form="redesign-form" class="btn btn-outline-light btn-sm mt-2 mb-2">
+              🤖 Full AI redesign
+            </button>
+            <span class="text-secondary small">— replaces size, colours, icon, border/holes/flat too</span>
+          </div>
           {% endif %}
           <div class="row g-2">
             <div class="col-6"><label class="small">Text size (mm)</label>
